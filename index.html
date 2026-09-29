@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>God's Eye View</title>
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/gev-cn.css" />
+  <link rel="stylesheet" href="/gev-responsive.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -35,5 +37,18 @@
   <!-- gev:template hud-loading -->
 
   <script type="module" src="/src/main.js"></script>
+  <!-- GEV 中文增强包（界面汉化 + 美化钩子）；删掉本行即完全还原 -->
+  <script type="module" src="/src/gev-cn.js"></script>
+  <!-- GEV 定位当前设备位置；删掉本行即移除该功能 -->
+  <script type="module" src="/src/gev-locate.js"></script>
+  <!-- GEV 打开即显示航班（默认开启 flights 图层）；删掉本行即还原图层默认全关 -->
+  <script type="module" src="/src/gev-autolocate.js"></script>
+  <!-- GEV 交通工具详细档案框（型号/性能 + 实时位置）；删掉本行即完全还原 -->
+  <script type="module" src="/src/gev-dossier.js"></script>
+  <script type="module" src="/src/gev-perf.js"></script>
+  <!-- GEV 数据图层「渲染上限」控件（滑动条 0–999 + 数值框）；删掉本行即完全还原 -->
+  <script type="module" src="/src/gev-layer-limits.js"></script>
+  <!-- GEV「画面设置」面板（画质预设/渲染分辨率/锐化/抗锯齿 + FSR 风格放大）；删掉本行即完全还原 -->
+  <script type="module" src="/src/gev-graphics.js"></script>
 </body>
 </html>

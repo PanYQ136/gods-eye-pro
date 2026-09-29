@@ -128,6 +128,12 @@ export function createIngestion({
     }
 
     settleFirstConnect('ready');
+    // 供 reapply：改渲染上限后立即重放，无需等下一轮轮询（60 s）。缓存的是已归一化
+    // 的展示行，重放路径与本次抓取完全一致，不联网、不消耗配额。
+    feed._lastSnapshot = {
+      rows: snapshot.acceptedRows,
+      complete: payload?.complete !== false,
+    };
     applyRows(viewer, snapshot.acceptedRows, {
       complete: payload?.complete !== false,
     });
@@ -174,6 +180,25 @@ export function createIngestion({
       if (!feed.enabled) return Promise.resolve();
       return loadLivePositions(viewer || readViewer());
     },
+
+    /**
+     * 用上一帧快照重放一次（改渲染上限后立即生效，无需联网、不消耗配额）。
+     * 与 flights/military 的 ingestion.reapply 同形；禁用态直接返回，避免在
+     * 图层不可见时重建图元或写入记录。
+     * @param {Object|null} viewer - Active viewer (falls back to the layer's).
+     */
+    reapply(viewer) {
+      const snapshot = feed._lastSnapshot;
+      if (!snapshot || !feed.enabled) return;
+      try {
+        applyRows(viewer || readViewer(), snapshot.rows, {
+          complete: snapshot.complete,
+        });
+        feed.count = readCount();
+      } catch {
+        /* 非致命：下一次轮询会纠正 */
+      }
+    },
   };
 
   return {
@@ -209,5 +234,7 @@ export function createVesselFeed() {
     firstConnectDeadline: null,
     firstConnectTimer: null,
     abort: null,
+    /** @type {{rows: Array<Object>, complete: boolean}|null} 最近一次已接受快照，供 reapply 重放 */
+    _lastSnapshot: null,
   };
 }

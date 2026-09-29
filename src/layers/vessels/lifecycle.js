@@ -117,6 +117,7 @@ export function createLifecycle({
     state.feed.firstConnectDeadline = null;
     state.feed.firstConnectTimer = null;
     state.feed.abort = null;
+    state.feed._lastSnapshot = null;
     state.billboardCollection = null;
     state.records.all = [];
     state.records.byMmsi = new Map();

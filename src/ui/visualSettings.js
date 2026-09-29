@@ -830,6 +830,10 @@ export class VisualSettings {
         focus: false,
       });
     }
+    // GEV owner 2026-09-28: the Display menu ships with ONLY the detection
+    // ("密集") overlay lit. Cyber sonar now defaults OFF on a fresh load (a
+    // share link or a stored session can still restore it on).
+    if (this._cyberSonarBtn) this._setCyberSonarEnabled(false);
   }
 
   _shareableDetectionState() {

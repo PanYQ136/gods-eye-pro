@@ -1,7 +1,7 @@
 import { createVesselFeed } from './ingestion.js';
 import { VesselRecords } from './records.js';
 import * as Cesium from 'cesium';
-import { DEFAULT_AIS_RUNTIME } from './policy.js';
+import { DEFAULT_AIS_RUNTIME, RENDER_LIMIT_UNLIMITED } from './policy.js';
 
 export function createVesselState({ source, services }) {
   const {
@@ -41,6 +41,16 @@ export function createVesselState({ source, services }) {
    */
 
   vesselState._geoidReady = false;
+
+  /**
+   * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 艘（0 = 除选中/跟踪船外不渲染）。
+   * 999 视为「不限」——即默认旧行为（全部渲染，零行为变化）。由非侵入 UI
+   * （gev-layer-limits.js）经 dataManager.setLayerParams → module.setParams 设置；
+   * 生效点：rendering.renderRowLimit() + snapshotRenderer 的最近 N 预筛。
+   * @type {number}
+   */
+
+  vesselState._renderLimit = 25;
 
   /** @type {Map<string, string>} `${cssColor}:${variant}` -> chevron SVG data URL */
 

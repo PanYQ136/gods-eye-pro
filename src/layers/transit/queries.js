@@ -1,6 +1,7 @@
 import {
   ACTIVATION_ALTITUDE_M,
   FEED_STALE_AFTER_MS,
+  RENDER_LIMIT_UNLIMITED,
   aggregateTransitFeedHealth,
   transitDetectionClass,
   transitDetectionId,
@@ -167,6 +168,35 @@ export function createQueries({ state, parts }) {
   }
 
   const methods = {
+    /**
+     * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 辆（0 = 只显示选中车辆），
+     * 999 = 不限（默认）。语义与 flights / military 的 renderLimit 一致，由
+     * `dataManager.setLayerParams('transit', { renderLimit: n }, { origin:'user' })`
+     * 下发（gev-layer-limits.js）。
+     *
+     * 立即生效：用缓存的车队状态重算准入集合 + 重写 sprite 的 show，不联网、
+     * 不轮询、不重建标记/轨道。
+     * @param {{renderLimit?: number}} [params]
+     * @returns {boolean} True — 参数已被接受。
+     */
+    setParams(params = {}) {
+      if (Number.isFinite(params.renderLimit)) {
+        const n = Math.max(
+          0,
+          Math.min(RENDER_LIMIT_UNLIMITED, Math.floor(params.renderLimit)),
+        );
+        if (n !== state._renderLimit) {
+          state._renderLimit = n;
+          parts.rendering.applyRenderLimit();
+        }
+      }
+      return true;
+    },
+
+    getParams() {
+      return { renderLimit: state._renderLimit };
+    },
+
     /**
      * Detection contract: buses, trams and trains are contacts like any other.
      * @param {{maxCount?: number, seed?: number}} [options]

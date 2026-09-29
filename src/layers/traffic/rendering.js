@@ -10,6 +10,7 @@ import {
   HEAT_LINE_SLOW_WIDTH,
   TRAFFIC_TIMING_ENABLED,
   MAX_DOTS,
+  RENDER_LIMIT_UNLIMITED,
 } from './policy.js';
 
 export function createRendering({
@@ -33,6 +34,91 @@ export function createRendering({
             r.type === 'motorway' || r.type === 'trunk' || r.type === 'primary',
         )
       : roads;
+  }
+
+  /**
+   * Whether a dot belongs to a road TomTom reports as closed. Such dots are
+   * hidden by recolorDotsInPlace; the render-limit pass must respect that and
+   * never re-show them (the cap only decides which dots MAY draw).
+   * @param {object} dot - Dot state object.
+   * @returns {boolean}
+   */
+
+  function dotOnClosedRoad(dot) {
+    return layerState._liveMode && dot.road?.flow?.closure === true;
+  }
+
+  /**
+   * Camera position (world coordinates) with the cartographic fallback — the
+   * camera always has `positionWC` in the app, but a harness or a pre-frame
+   * camera may only carry the cartographic pose.
+   * @param {Cesium.Cartesian3} scratch Reusable output for the fallback path.
+   * @returns {Cesium.Cartesian3|null}
+   */
+
+  function cameraWorldPosition(scratch) {
+    const camera = layerState._viewer?.camera;
+    if (!camera) return null;
+    if (camera.positionWC) return camera.positionWC;
+    if (camera.positionCartographic)
+      return Cesium.Ellipsoid.WGS84.cartographicToCartesian(
+        camera.positionCartographic,
+        scratch,
+      );
+    return null;
+  }
+
+  /** Scratch for the render-limit camera read (never escapes this module). */
+
+  const cameraLimitPos = new Cesium.Cartesian3();
+
+  /**
+   * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 个车流点。
+   *
+   * 999 = 不限（默认）—— 该分支只把「被上限藏掉」的点放回来，紧闭路段的点
+   * 保持隐藏，未设定上限时是零改动的 no-op。0 = 全部隐藏（车流点没有「选中/
+   * 跟踪」个体，故没有豁免对象）。
+   *
+   * 车流点全部来自当前视区抓取的道路，所以排序对象就是 `_dots` 本身：按相机
+   * 距离排序后前 keep 个 `point.show = true`，其余 false。纯本地计算，不联网、
+   * 不重新抓取道路/流量。
+   */
+
+  function applyRenderLimit() {
+    layerState._renderLimitAt = Date.now();
+    const dots = layerState._dots;
+    if (!Array.isArray(dots) || dots.length === 0) return;
+    const limit = layerState._renderLimit;
+    if (!Number.isFinite(limit) || limit >= RENDER_LIMIT_UNLIMITED) {
+      // 恢复被上限隐藏的点；紧闭路段保持隐藏。
+      for (const dot of dots) {
+        if (dot.point.show === false && !dotOnClosedRoad(dot))
+          dot.point.show = true;
+      }
+      return;
+    }
+    const keep = Math.max(0, Math.floor(limit));
+    const cameraPos = cameraWorldPosition(cameraLimitPos);
+    // admitted === null → 无法排名（尚未 init / 没有相机），此时不裁剪；
+    // keep === 0 → 空集合，全部隐藏（无需相机）。
+    let admitted = keep === 0 ? new Set() : null;
+    if (keep > 0 && cameraPos) {
+      const ranked = [];
+      for (let i = 0; i < dots.length; i += 1) {
+        const at = dots[i].point.position;
+        if (!at) continue;
+        ranked.push([Cesium.Cartesian3.distanceSquared(cameraPos, at), i]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      admitted = new Set();
+      const take = Math.min(keep, ranked.length);
+      for (let i = 0; i < take; i += 1) admitted.add(ranked[i][1]);
+    }
+    if (admitted === null) return;
+    for (let i = 0; i < dots.length; i += 1) {
+      const dot = dots[i];
+      dot.point.show = admitted.has(i) && !dotOnClosedRoad(dot);
+    }
   }
 
   /** Remove both heat-line ground primitives from the scene. */
@@ -292,6 +378,9 @@ export function createRendering({
 
     layerState._count = layerState._dots.length;
     layerState._lastUpdate = Date.now();
+    // 新生的点默认 `show = true`，所以渲染上限必须在这里落到这批新点上 ——
+    // 否则一次相机驱动的重载就会让用户设定的上限悄无声息地失效。
+    applyRenderLimit();
     console.log(
       `[Data:Traffic] ${label}: ${layerState._count} dots (roads=${roads.length}, alt=${Math.round(altitude)}m)`,
     );
@@ -314,5 +403,6 @@ export function createRendering({
     removeHeatLines,
     rebuildHeatLines,
     renderRoadsForAltitude,
+    applyRenderLimit,
   };
 }

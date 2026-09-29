@@ -12,6 +12,8 @@ import {
   CREEP_BURST,
   HEAT_JAM_BASE_ALPHA,
   HEAT_JAM_PULSE_ALPHA,
+  RENDER_LIMIT_UNLIMITED,
+  RENDER_LIMIT_REFRESH_MS,
 } from './policy.js';
 
 export function createAnimation({
@@ -274,6 +276,16 @@ export function createAnimation({
     if (layerState._heatJamPrim?.appearance) {
       layerState._heatJamPrim.appearance.material.uniforms.color.alpha =
         HEAT_JAM_BASE_ALPHA + HEAT_JAM_PULSE_ALPHA * Math.sin(now / 260);
+    }
+
+    // 操作员渲染上限 (renderLimit)：点一直在动、相机也会移动，「离相机最近的
+    // N 个」会漂移，所以有上限时按秒级重算一次 show。默认 999(不限) 整段跳过
+    // —— 正常路径零额外开销。
+    if (
+      layerState._renderLimit < RENDER_LIMIT_UNLIMITED &&
+      now - layerState._renderLimitAt >= RENDER_LIMIT_REFRESH_MS
+    ) {
+      parts.rendering.applyRenderLimit();
     }
 
     layerState._animFrame++;

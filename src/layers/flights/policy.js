@@ -54,7 +54,7 @@ export const MODEL_MIN_PX = 24;
 export const TRACKED_MODEL_MIN_PX = 40;
 // keep the glTF silhouette comparable to the selected 2D glyph at handoff
 
-export const TRACKED_MODEL_MAX_PX = 200;
+export const TRACKED_MODEL_MAX_PX = 100000;
 // owner-selected close-range tracked-target feel
 
 export const MODEL_NATIVE_RADIUS_M = 34.41;
@@ -91,12 +91,30 @@ export const MODEL_ALL_ADD_M = 400000;
 export const MODEL_ALL_KEEP_M = 450000;
 // all: KEEP modeled planes out to 450 km
 
+/** Viewport-proximate fleet. The BillboardCollection's per-frame update visits
+ *  EVERY member, so carrying all global traffic made frame cost scale with the
+ *  planet, not the screen, even though the horizon occluder hides all but a
+ *  few. Keep a contact's billboard only while it is within FLEET_KEEP_M of the
+ *  camera; create one only within the smaller FLEET_ADD_M (KEEP > ADD gives
+ *  add/remove hysteresis, no flicker at the edge). Far contacts shed their
+ *  billboard + cached state and re-join cleanly when the camera pans back. */
+export const FLEET_ADD_M = 400000;
+// create a contact billboard within 400 km of the camera
+
+export const FLEET_KEEP_M = 480000;
+// keep a contact billboard within 480 km of the camera
+
 export const MODEL_HEADING_OFFSET_DEG = 180;
 // airplane.glb nose is opposite Cesium heading-0
 // Owner launch-polish direction: models should read as clean light silhouettes,
 // with only a weak diffuse contribution from the existing approved textures.
 
 export const MODEL_COLOR_BLEND_AMOUNT = 0.94;
+
+/** A real per-class/type GLB carries its OWN materials, so it renders untinted
+ *  (blend 0 = the model's true colours). Only the shared fallback airplane.glb
+ *  keeps the flat silhouette tint from MODEL_COLOR_BLEND_AMOUNT. */
+export const MODEL_REAL_COLOR_BLEND_AMOUNT = 0;
 
 // Grounded-model belly offset: airplane.glb's centred origin sits 6.719 m ABOVE its
 // lowest vertex (glTF Y-up scene AABB with node transforms applied — same reader as

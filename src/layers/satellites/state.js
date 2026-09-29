@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { RENDER_LIMIT_DEFAULT } from './policy.js';
 
 export function createState({ services }) {
   const { setOverlayEntries, setOverlaySourceVisible, clearOverlaySource } =
@@ -61,6 +62,28 @@ export function createState({ services }) {
   state._scratchFocusScreen = new Cesium.Cartesian2();
 
   state._enabled = false;
+
+  /**
+   * 操作员渲染上限 (renderLimit, 0–999) — 与 flights/military 同构：
+   * 只渲染离相机最近的 N 颗卫星（0 = 除跟踪目标外全部隐藏），999 = 不限（默认，
+   * 见 policy.RENDER_LIMIT_UNLIMITED）。由非侵入 UI（gev-layer-limits.js）经
+   * DataLayerManager.setLayerParams → controls.setParams 写入；
+   * rendering._applyRenderCap 每个 tick 强制执行。
+   */
+
+  state._renderLimit = 25;
+
+  /** @type {Set<number>|null} 上一次上限放行的 norad id（null = 不限，不裁剪）。 */
+
+  state._renderCapAllowed = null;
+
+  /** @type {number} 上一次上限重排的时钟锚点（节流用，不参与状态语义）。 */
+
+  state._renderCapLastMs = 0;
+
+  /** @type {boolean} 当前上限是否放行 ISS 点（ISS 常驻悬浮标签的可见性闸门）。 */
+
+  state._renderCapIssAllowed = true;
 
   // Click-to-track state
 

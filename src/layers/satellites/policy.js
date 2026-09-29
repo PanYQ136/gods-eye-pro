@@ -34,6 +34,37 @@ export const RING_ROTATION_MS = 1000;
 // re-align baked orbit rings to current GMST every 1s
 
 /**
+ * Operator render limit (renderLimit, 0–999) — flights/military parity, see
+ * flights/state.js and flights/snapshotRenderer.js. The layer renders only the
+ * N satellites nearest the camera; 0 hides everything but the tracked one.
+ *
+ * RENDER_LIMIT_UNLIMITED (999, the default) means NO cap at all, rather than a
+ * literal nearest-999: unlike the flights layer this catalog is not clipped to
+ * a viewport, so a literal 999 would silently thin the dense Starlink shell
+ * (10 000+ points) for every operator who never touched the slider. 998 is
+ * therefore the largest effective cap.
+ */
+
+export const RENDER_LIMIT_DEFAULT = 999;
+
+export const RENDER_LIMIT_UNLIMITED = 999;
+
+export const RENDER_LIMIT_MAX = 999;
+
+/** Cadence (ms) at which the cap re-ranks against current camera + positions. */
+
+export const RENDER_CAP_INTERVAL_MS = 250;
+
+/** Point count above which the cap ranks on the slower dense cadence below. */
+
+export const RENDER_CAP_DENSE_SIZE = 4000;
+
+/** Dense cadence (ms): a full rank+sort of 10K+ points at 4 Hz would churn
+ *  ~10K short-lived tuples per pass for no visible gain. */
+
+export const RENDER_CAP_DENSE_INTERVAL_MS = 1000;
+
+/**
  * CelesTrak groups loaded as the core catalog, in dedupe-priority order:
  * a satellite that appears in multiple groups keeps the FIRST (most specific)
  * tag. `path` is the upstream GROUP name forwarded by the /api/celestrak

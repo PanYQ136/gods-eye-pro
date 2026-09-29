@@ -11,6 +11,15 @@ export const LOCAL_ADSB_TICK_MS = 1_000;
 /** Coalesce receiver bursts into at most one scene sync per interval. */
 export const LOCAL_ADSB_SYNC_MS = 200;
 export const HEARD_BY_RECEIVER = 'Heard by your receiver';
+
+// --- Operator render limit ---
+/** Lower bound of the operator render limit (0 = render no unselected aircraft). */
+
+export const RENDER_LIMIT_MIN = 0;
+
+/** Upper bound; at this value the operator limit means "unlimited". */
+
+export const RENDER_LIMIT_MAX = 999;
 export const BAND_LABELS = Object.freeze({
   1090: '1090 MHz',
   978: '978 MHz UAT',

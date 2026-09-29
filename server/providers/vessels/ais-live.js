@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { createAisStreamAdapter } from '../../../src/data/aisStreamAdapter.js';
 import { parseSilenceTimeoutEnv } from '../../../src/data/aisWatchdog.js';
 import { clampInt } from '../common/query.js';
+import { wsProxyAgent } from '../common/ws-proxy-agent.js';
 import {
   AISSTREAM_CACHE_MAX,
   AISSTREAM_STALE_MS,
@@ -254,7 +255,10 @@ function aisAdapter() {
     createSocket: (url) => {
       const WebSocketCtor = aisWebSocketImpl();
       if (!WebSocketCtor) throw new Error('ws transport unavailable');
-      return new WebSocketCtor(url);
+      // `ws` ignores NODE_USE_ENV_PROXY, so hand it the local proxy agent (built
+      // from HTTP(S)_PROXY; null when none is set → direct connect unchanged).
+      const agent = wsProxyAgent();
+      return new WebSocketCtor(url, agent ? { agent } : undefined);
     },
     resolveUrl: () => aisWatchdogPolicy().url,
     buildSubscription: aisStreamSubscription,

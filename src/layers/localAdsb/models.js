@@ -2,6 +2,7 @@ import * as Cesium from 'cesium';
 import { horizonOccluder } from '../../data/iconOrientation.js';
 import { selectModelEligible } from '../../data/modelEligibility.js';
 import { civilAircraftModelSpec } from '../flights/modelSpec.js';
+import { RENDER_LIMIT_MAX } from './policy.js';
 import {
   FLEET_DR_INTERVAL_MS,
   MODEL_ALL_ADD_M,
@@ -53,6 +54,10 @@ export function createLocalAdsbModels({
   let destroyed = false;
   let lastEligibilityAt = 0;
   let eligible = new Set();
+  /** @type {Set<string>|null} ids inside the operator's nearest-N window
+   *  (null = unlimited). Narrows `eligible` without releasing models that
+   *  merely left the window — see refreshEligibility. */
+  let operatorWindow = null;
   const scratchHpr = new Cesium.HeadingPitchRoll();
   const scratchSphere = new Cesium.BoundingSphere(Cesium.Cartesian3.ZERO, 1);
   const scratchCarto = new Cesium.Cartographic();
@@ -153,13 +158,39 @@ export function createLocalAdsbModels({
       ]);
     }
     candidates.sort((a, b) => a[1] - b[1]);
-    eligible = selectModelEligible(candidates, {
+    // Operator render limit (0–999): only the NEAREST N aircraft may show a
+    // model — the same ordering the layer uses for its markers, since
+    // candidates are already distance-sorted. The selected aircraft is kept
+    // whatever its rank: the operator is reading its card. 999 means unlimited.
+    const requested = Number(preferences?.renderLimit);
+    const limit = Number.isFinite(requested)
+      ? Math.max(0, Math.min(RENDER_LIMIT_MAX, Math.floor(requested)))
+      : RENDER_LIMIT_MAX;
+    operatorWindow = null;
+    if (limit < RENDER_LIMIT_MAX) {
+      const keepId = preferences?.keepId || null;
+      operatorWindow = new Set();
+      for (let i = 0; i < candidates.length; i += 1) {
+        if (i < limit || candidates[i][0] === keepId)
+          operatorWindow.add(candidates[i][0]);
+      }
+    }
+    // `physical` is what the fleet cadence and radius allow; `eligible` is that
+    // set narrowed by the operator's window.
+    const physical = selectModelEligible(candidates, {
       cap,
       addDistSq: addM * addM,
       isModeled: (id) => models.has(id),
     });
+    eligible = operatorWindow
+      ? new Set([...physical].filter((id) => operatorWindow.has(id)))
+      : physical;
+    // Release on PHYSICAL grounds only: a model that merely left the operator's
+    // window is kept and hidden by the placement pass instead, so dragging the
+    // limit (or selecting an aircraft the cap was hiding) never reloads a glTF
+    // just to hide or re-show it.
     for (const id of [...models.keys(), ...pending.keys()])
-      if (!eligible.has(id)) release(id);
+      if (!physical.has(id)) release(id);
     for (const id of eligible) void ensure(id, markers.get(id), cap);
   }
 
@@ -193,6 +224,16 @@ export function createLocalAdsbModels({
     },
 
     /**
+     * Make the next `frame()` re-derive eligibility instead of waiting out the
+     * fleet cadence. The layer calls this when the operator's render limit
+     * changes, so the new nearest-N is admitted/placed on the next frame.
+     * @returns {void}
+     */
+    invalidateEligibility() {
+      lastEligibilityAt = Number.NEGATIVE_INFINITY;
+    },
+
+    /**
      * Per-frame pass: re-derive eligibility at the fleet cadence, then place
      * every admitted model and hand each marker's visual to its model only
      * once the model is ready and placed.
@@ -218,6 +259,12 @@ export function createLocalAdsbModels({
         const model = models.get(id);
         marker.modelOwnsVisual = false;
         if (!model || !marker.position) continue;
+        // Outside the operator's render limit: hidden, but kept admitted (see
+        // refreshEligibility) so raising the limit is instant and reload-free.
+        if (operatorWindow && !operatorWindow.has(id)) {
+          model.show = false;
+          continue;
+        }
         const position = placement(id, marker);
         if (!position || !occluder.isPointVisible(marker.position)) {
           model.show = false;

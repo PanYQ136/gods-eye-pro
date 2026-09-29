@@ -13,6 +13,7 @@ import {
 import {
   VESSEL_LIFT_M,
   DEFAULT_RENDER_ROWS,
+  RENDER_LIMIT_UNLIMITED,
   DEFAULT_ACTIVE_LABELS,
   VISIBILITY_UPDATE_MS,
   FOCUS_UPDATE_MS,
@@ -76,12 +77,33 @@ export function createRendering({
     focusAlphaNeedsWrite,
   } = services.focus;
 
-  function renderRowLimit() {
+  /**
+   * 源端取数上限（旧语义）：与操作员渲染上限无关，只决定一次轮询向源请求多少行。
+   * 保留旧上限，是为了让「调大渲染上限」能立即从缓存重放，而不必重新联网取数。
+   * @returns {number} Rows to request from the source.
+   */
+
+  function fetchRowLimit() {
     const configured = Number(options.maxRows);
     if (Number.isFinite(configured) && configured > 0) {
       return Math.max(500, Math.min(50000, Math.round(configured)));
     }
     return DEFAULT_RENDER_ROWS;
+  }
+
+  /**
+   * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 艘。
+   * 999 = 「不限」→ 返回旧上限（默认 DEFAULT_RENDER_ROWS / options.maxRows），
+   * 默认路径因此与本功能加入前逐位一致；0 = 除选中/跟踪船外不渲染。
+   * @returns {number} Client-side render cap (never above the fetch ceiling).
+   */
+
+  function renderRowLimit() {
+    const ceiling = fetchRowLimit();
+    const operator = Number(vesselState._renderLimit);
+    if (!Number.isFinite(operator) || operator >= RENDER_LIMIT_UNLIMITED)
+      return ceiling;
+    return Math.min(ceiling, Math.max(0, Math.floor(operator)));
   }
 
   function labelRowLimit() {
@@ -185,7 +207,20 @@ export function createRendering({
 
     const stroke = selected ? 'rgba(6,26,32,0.95)' : 'rgba(4,18,24,0.9)';
     const strokeWidth = selected ? 1.1 : 0.7;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    // DPR-aware raster: match the ~20 CSS px device footprint so Cesium's
+    // mipmap-less billboard atlas isn't GPU-minified to mush on a DPR=1 panel.
+    const raster = Math.min(
+      Math.max(
+        Math.round(
+          20 *
+            ((typeof window !== 'undefined' && window.devicePixelRatio) || 1) *
+            1.4,
+        ),
+        28,
+      ),
+      128,
+    );
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${raster}" height="${raster}" viewBox="0 0 32 32">
     <g transform="translate(16,16)">
       <path d="M0,-14 L11,10 L4,7 L0,14 L-4,7 L-11,10 Z" fill="${cssColor}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>
     </g>
@@ -496,6 +531,7 @@ export function createRendering({
     getVisual,
     prepareRecordVisual,
     resetRecordVisuals,
+    fetchRowLimit,
     renderRowLimit,
     labelRowLimit,
     ensureCollections,

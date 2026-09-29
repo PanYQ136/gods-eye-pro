@@ -39,6 +39,19 @@ export function createState({ services }) {
   state._cameraChangedAttached = false;
   state._cameraDebounceTimer = null;
   state._altitudeGateOpen = false;
+
+  /**
+   * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 辆（0 = 只显示选中车辆）。
+   * 999 视为「不限」（默认）。@type {number}
+   */
+  state._renderLimit = 25;
+
+  /**
+   * 当前准入集合：本帧允许绘制的车辆 entry。null = 不裁剪（不限或车辆数
+   * 未超过上限）。由 rendering.refreshRenderLimit() 在可见性扫描前重算。
+   * @type {Set<object>|null}
+   */
+  state._capAllowed = null;
   /** Camera sensitivity as we found it, so disable() can hand it back. */
   state._priorPercentageChanged = null;
   /** The value this layer actually wrote, for an identity-guarded restore. */

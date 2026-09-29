@@ -1,7 +1,7 @@
 import * as Cesium from 'cesium';
 
 const MAX_FRAME_ATTEMPTS = 120;
-const MIN_TRACKED_RANGE_M = 150;
+const MIN_TRACKED_RANGE_M = 35;
 const ZOOM_INERTIA_STATES = new WeakMap();
 
 /**
@@ -24,6 +24,7 @@ export function trackedModelScaleForPixelCap({
   viewportHeightPx,
   fovyRad,
   maximumPixelSize,
+  minimumPixelSize = 0,
 }) {
   if (
     !Number.isFinite(baseScale) ||
@@ -37,14 +38,26 @@ export function trackedModelScaleForPixelCap({
     !Number.isFinite(fovyRad) ||
     fovyRad <= 0 ||
     !Number.isFinite(maximumPixelSize) ||
-    maximumPixelSize <= 0
+    maximumPixelSize <= 0 ||
+    !Number.isFinite(minimumPixelSize) ||
+    minimumPixelSize < 0
   )
     return baseScale;
   const focalLengthPx = viewportHeightPx / (2 * Math.tan(fovyRad / 2));
   const projectedDiameterPx =
     (2 * nativeRadiusM * baseScale * focalLengthPx) / rangeM;
-  if (projectedDiameterPx <= maximumPixelSize) return baseScale;
-  return baseScale * (maximumPixelSize / projectedDiameterPx);
+  // GEV (owner 2026-09-28): 360° smooth zoom. Cesium's own `minimumPixelSize`
+  // inflates a model to its floor using the BOUNDING SPHERE's projected size,
+  // which varies with the camera ANGLE — crossing the threshold popped the model
+  // bigger/smaller. Driving the floor here (from the camera-to-model RANGE, which
+  // is angle-independent at a fixed range) makes the apparent size a smooth,
+  // linear function of distance: px = clamp(projected, min, max). The model's
+  // Cesium `minimumPixelSize` is set to 0 so nothing else adds an angle term.
+  if (projectedDiameterPx > maximumPixelSize)
+    return baseScale * (maximumPixelSize / projectedDiameterPx);
+  if (minimumPixelSize > 0 && projectedDiameterPx < minimumPixelSize)
+    return baseScale * (minimumPixelSize / projectedDiameterPx);
+  return baseScale;
 }
 
 /**
@@ -75,7 +88,9 @@ function acquireStableTrackedZoom(controller, entity) {
     ZOOM_INERTIA_STATES.set(controller, state);
   }
   state.owners.add(entity);
-  controller.inertiaZoom = 0;
+  // 跟踪态保留一点滚轮惯性：0 会让每一格滚轮“瞬跳”（用户反馈的“突然变大变小”），
+  // 0.5 让缩放带阻尼滑行；仍远低于 Cesium 默认 0.8，不会在最近距离过冲。
+  controller.inertiaZoom = 0.5;
   controller.minimumZoomDistance = Math.max(
     state.originalMinimumZoomDistance,
     MIN_TRACKED_RANGE_M,

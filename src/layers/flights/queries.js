@@ -332,6 +332,16 @@ export function createQueries({
         // own conversions, so this never touches the ordinary fleet.
         parts.tracking._refreshTr3bForStyle();
       }
+      if (Number.isFinite(params.renderLimit)) {
+        const n = Math.max(0, Math.min(999, Math.floor(params.renderLimit)));
+        if (n !== flightState._renderLimit) {
+          flightState._renderLimit = n;
+          flightState._lastFleetTickMs = 0;
+          // 立即用上一帧快照重放 —— 否则上限要等下一次轮询(30s)才生效。
+          parts.ingestion?.methods?.reapply?.(flightState._viewer);
+          flightState._viewer?.scene?.requestRender?.();
+        }
+      }
       if (Object.hasOwn(params, 'selectedFlightsTrackingId')) {
         const requested = _normalizeTrackedIcao(
           params.selectedFlightsTrackingId,
@@ -362,6 +372,7 @@ export function createQueries({
         models3d: flightState._models3dEnabled,
         models3dMode: flightState._models3dMode,
         irBoost: flightState._irBoost,
+        renderLimit: flightState._renderLimit,
         selectedFlightsTrackingId: flightState._trackedIcao,
       };
     },
@@ -442,7 +453,7 @@ export function createQueries({
         // no `_modelDisplayPosition` call from postRender. Sprite-owned contacts keep
         // `bb.position` — sprite and bracket are co-located there, so association holds.
         const spec = modelOwnsVisual
-          ? parts.rendering._modelSpec(info?.klass)
+          ? parts.rendering._modelSpec(info?.klass, info?.typeCode)
           : null;
         const pos = isTracked
           ? parts.motion._trackedVisualCached() || bb.position

@@ -17,5 +17,14 @@ output/
 .DS_Store
 .gstack/
 3d-models/
+# Runtime scratch dirs and generated model caches (derived from public/models/*.glb
+# by the local bake/normalize experiments; not referenced by any source file).
+cache/
+public/models/_baked/
+public/models/_norm/
+public/models/_skb/
 pinokio/ENVIRONMENT
 pinokio/.installed
+
+.vercel
+.env*

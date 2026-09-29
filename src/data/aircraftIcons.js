@@ -255,7 +255,7 @@ const FLEET_RASTER_PX = 64;
 /** Tracked raster: the tracked billboard is the one SUSTAINED large 2D glyph
  *  (close-zoom fleet flybys hand off to 3D models). Keep the 192 px texture so
  *  it stays crisp at its biggest on-screen sizes. */
-const TRACKED_RASTER_PX = 192;
+const TRACKED_RASTER_PX = 64;
 
 /** Data URI for a class silhouette (lazily built, cached per kind+size).
  *  Default size serves the fleet; pass `aircraftIcon(kind, TRACKED_ICON_PX)`

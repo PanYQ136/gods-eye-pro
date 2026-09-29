@@ -9,6 +9,13 @@ export const FOCUS_EVIDENCE_DEV = import.meta.env?.DEV === true;
 
 export const DEFAULT_RENDER_ROWS = 12000;
 
+/**
+ * 操作员渲染上限的上界，同时是「不限」的哨兵值：999 = 只渲染离相机最近的 999 艘
+ * ≈ 不限制（全局快照经视区裁剪后本就远少于 999）。航班/军机图层使用同一语义值。
+ */
+
+export const RENDER_LIMIT_UNLIMITED = 999;
+
 export const DEFAULT_ACTIVE_LABELS = 900;
 
 export const REFRESH_MS = 60000;

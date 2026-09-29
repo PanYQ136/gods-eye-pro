@@ -57,16 +57,22 @@ export function createFlightState({ source, services }) {
 
   flightState._modelEpoch = 0;
 
-  /** DEFAULT-ON in PROXIMITY (owner directive 2026-08-22). A fresh boot never runs
+  /** DEFAULT-OFF (owner 2026-09-28: a fresh load shows only the detection overlay;
+   *  supersedes the 2026-08-22 default-ON). A fresh boot never runs
    *  layer-state restoration, so this initializer — not the codec — is what the app
    *  actually starts with; it must stay in lockstep with the `models3d` default in
    *  `layerState.js` and `this._models3dEnabled` in ui.js, or the DISPLAY rail would
    *  light a button the layer has not armed. */
 
-  flightState._models3dEnabled = true;
+  flightState._models3dEnabled = false;
 
   flightState._models3dMode = 'proximity';
   // 'proximity' = nearest MODEL_MAX in view; 'all' = every in-view plane (≤ MODEL_MAX_ALL)
+
+  /** 操作员渲染上限 (0–999)：只保留离相机最近的 N 架（0 = 不渲染非跟踪机）。
+   *  999 视为「不限」——全局快照经 FLEET_ADD_M(400km) 视区裁剪后本就远少于 999。
+   *  由非侵入 UI（gev-layer-limits.js）经 setLayerParams 设置。 */
+  flightState._renderLimit = 25;
 
   flightState._lastModelCapWarnMs = 0;
   // throttle the "more planes in view than the cap" console notice

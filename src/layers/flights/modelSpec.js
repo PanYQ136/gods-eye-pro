@@ -2,6 +2,7 @@ import {
   CLASS_MODEL_REAL,
   CLASS_MODEL_URL,
   CLASS_SCALE_3D,
+  TYPE_MODEL_REAL,
 } from '../../data/aircraftClass.js';
 import {
   trailAnchorForModel,
@@ -10,6 +11,7 @@ import {
 import {
   MODEL_BELLY_OFFSET_NATIVE,
   MODEL_COLOR_BLEND_AMOUNT,
+  MODEL_REAL_COLOR_BLEND_AMOUNT,
   MODEL_NATIVE_RADIUS_M,
   MODEL_SCALE,
   PLANE_MODEL_URL,
@@ -22,18 +24,21 @@ import {
  * 3D scale. Shared by the Flights layer and the Local ADS-B layer so both draw
  * the same model for the same class.
  * @param {string} klass Aircraft class from `classifyAircraft`.
+ * @param {string} [typeCode] ICAO type designator (e.g. "B738"); when it has a
+ *   baked per-type GLB it wins over the class, so a 737 draws a 737 airframe.
  * @returns {{url:string, scale:number, nativeRadiusM:number, bellyM:number,
  *   blendAmount:number, visualCenterNative:object, trailAnchorNative:object}}
  */
-export function civilAircraftModelSpec(klass) {
-  const real = CLASS_MODEL_REAL[klass];
+export function civilAircraftModelSpec(klass, typeCode = null) {
+  const code = typeCode ? String(typeCode).trim().toUpperCase() : null;
+  const real = (code && TYPE_MODEL_REAL[code]) || CLASS_MODEL_REAL[klass];
   if (real) {
     return {
       url: real.url,
       scale: 1,
       nativeRadiusM: real.radiusM,
       bellyM: real.bellyM,
-      blendAmount: MODEL_COLOR_BLEND_AMOUNT,
+      blendAmount: MODEL_REAL_COLOR_BLEND_AMOUNT,
       visualCenterNative: visualCenterForModel(real.url),
       trailAnchorNative: trailAnchorForModel(real.url),
     };

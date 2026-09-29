@@ -4,7 +4,7 @@ import {
   satelliteClassLegend,
 } from '../../data/satelliteClass.js';
 import * as Cesium from 'cesium';
-import { ISS_NORAD, POINT_STYLES } from './policy.js';
+import { ISS_NORAD, POINT_STYLES, RENDER_LIMIT_MAX } from './policy.js';
 
 export function createControls({ state: layerState, services, parts, source }) {
   const { isExplicitLayerStateOrigin } = services.layerState;
@@ -128,6 +128,11 @@ export function createControls({ state: layerState, services, parts, source }) {
         if (!shouldTake) continue;
         if (!point.position) continue;
         const isTracked = noradId === layerState._trackedNorad;
+        // Hidden by the operator's render cap (see rendering._applyRenderCap) —
+        // a bracket drawn on an invisible dot is a lie, so skip it like flights
+        // does for cap-hidden aircraft. The tracked dot is exempt: it is hidden
+        // only because its entity owns the visual, and it must keep its mark.
+        if (!isTracked && point.show === false) continue;
         // A docked companion sits at the tracked subject's own position, so its
         // mark and label would stack underneath the tracked card. It is listed on
         // that card instead. Only members of the tracked cluster are affected —
@@ -381,7 +386,10 @@ export function createControls({ state: layerState, services, parts, source }) {
      * Runtime params (DataLayerManager.setLayerParams path).
      * catalog: 'core' (default, ~840 sats) | 'dense' (adds the Starlink shell
      * as points-only extras on a relaxed propagation budget).
-     * @param {{ catalog?: 'core'|'dense', showPoints?: boolean, showOrbits?: boolean, selectedSatTrackingId?: number|null }} [params]
+     * renderLimit: 0–999 operator render cap — only the N satellites nearest the
+     * camera are rendered (0 = only the tracked satellite). 999 = unlimited
+     * (default), see policy.RENDER_LIMIT_UNLIMITED. Applied immediately.
+     * @param {{ catalog?: 'core'|'dense', showPoints?: boolean, showOrbits?: boolean, renderLimit?: number, selectedSatTrackingId?: number|null }} [params]
      */
     setParams(params = {}, { origin = 'programmatic' } = {}) {
       if (
@@ -416,6 +424,25 @@ export function createControls({ state: layerState, services, parts, source }) {
             layerState._params.showOrbits,
           );
         parts.labels._syncIssOverlay();
+      }
+      // 渲染上限 (0–999)：只渲染离相机最近的 N 颗（0 = 仅跟踪目标，999 = 不限）。
+      // 与 flights/military 同构。写入后立即用当前相机 + 当前位置重排一次并请求
+      // 重绘 —— 否则要等下一个 tick（最多 RENDER_CAP_DENSE_INTERVAL_MS）才生效。
+      if (params.renderLimit !== undefined) {
+        const requested = Number(params.renderLimit);
+        if (Number.isFinite(requested)) {
+          const n = Math.max(
+            0,
+            Math.min(RENDER_LIMIT_MAX, Math.floor(requested)),
+          );
+          // Idempotent: gev-layer-limits re-asserts its stored value every few
+          // seconds, and a re-send must not cost a re-rank or a repaint.
+          if (n !== layerState._renderLimit) {
+            layerState._renderLimit = n;
+            parts.rendering._applyRenderCap({ force: true });
+            layerState._viewer?.scene?.requestRender?.();
+          }
+        }
       }
       if (catalogChanged && catalog === 'dense') {
         layerState._denseLoadPromise = parts.catalog._loadDenseCatalog();
@@ -455,12 +482,15 @@ export function createControls({ state: layerState, services, parts, source }) {
       return true;
     },
 
-    /** @returns {{ catalog: string }} Current runtime params. */
+    /** @returns {{ catalog: string, renderLimit: number }} Current runtime params. */
     getParams() {
       return {
         catalog: layerState._params.catalog,
         showPoints: layerState._params.showPoints,
         showOrbits: layerState._params.showOrbits,
+        // Operator render cap (0–999). Non-invasive UI (gev-layer-limits.js)
+        // injects its slider for any layer whose getParams() reports it.
+        renderLimit: layerState._renderLimit,
         selectedSatTrackingId: layerState._trackedNorad,
       };
     },

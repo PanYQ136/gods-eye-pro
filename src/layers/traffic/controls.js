@@ -2,7 +2,7 @@ import {
   trafficBucketTier,
   trafficStyleProfile,
 } from '../../data/trafficPresetStyle.js';
-import { TRAFFIC_TIMING_ENABLED } from './policy.js';
+import { RENDER_LIMIT_UNLIMITED, TRAFFIC_TIMING_ENABLED } from './policy.js';
 
 export function createControls({ state: layerState, services, parts, source }) {
   const { getFlowSessionStats } = source;
@@ -20,11 +20,14 @@ export function createControls({ state: layerState, services, parts, source }) {
     updateInterval: 0,
 
     /**
-     * Update user-adjustable parameters (density and speed scaling).
+     * Update user-adjustable parameters (density, speed and render cap).
      *
      * @param {Object}  [params]
      * @param {number}  [params.densityScale] - Dot density multiplier (clamped 0.2–2.5).
      * @param {number}  [params.speedScale]   - Dot speed multiplier (clamped 0.3–3.0).
+     * @param {number}  [params.renderLimit]  - 渲染上限 0–999：只渲染离相机最近的
+     *   N 个车流点（0 = 全部隐藏；999 = 不限）。立即生效，不重新抓取道路/流量。
+     * @returns {boolean} True — 参数已被接受。
      */
     setParams(params = {}) {
       if (typeof params.densityScale === 'number') {
@@ -38,6 +41,18 @@ export function createControls({ state: layerState, services, parts, source }) {
           0.3,
           Math.min(3.0, params.speedScale),
         );
+      }
+      // 渲染上限 (0–999)：只渲染离相机最近的 N 个车流点，999 = 不限（默认）。
+      // 立即生效：就地重算每个点的 show（不联网、不重新抓取道路/流量）。
+      if (Number.isFinite(params.renderLimit)) {
+        const n = Math.max(
+          0,
+          Math.min(RENDER_LIMIT_UNLIMITED, Math.floor(params.renderLimit)),
+        );
+        if (n !== layerState._renderLimit) {
+          layerState._renderLimit = n;
+          parts.rendering.applyRenderLimit();
+        }
       }
       // Live-mode treatment of roads TomTom has no flow data for:
       // 'sim' (default) keeps them as today's white ambient dots — colored =
@@ -62,11 +77,13 @@ export function createControls({ state: layerState, services, parts, source }) {
           parts.style.restyleDotsInPlace();
         }
       }
+      return true;
     },
 
     /**
      * Return the current user-adjustable parameters.
-     * @returns {{densityScale:number, speedScale:number}}
+     * @returns {{densityScale:number, speedScale:number, uncoveredRoads:string,
+     *   jamViz:string, presetDots:string, renderLimit:number}}
      */
     getParams() {
       return {
@@ -75,6 +92,7 @@ export function createControls({ state: layerState, services, parts, source }) {
         uncoveredRoads: layerState._uncoveredMode,
         jamViz: layerState._jamViz,
         presetDots: layerState._presetDots,
+        renderLimit: layerState._renderLimit,
       };
     },
 
@@ -104,6 +122,8 @@ export function createControls({ state: layerState, services, parts, source }) {
       for (let i = start; i < layerState._dots.length; i += stride) {
         const pos = layerState._dots[i].point.position;
         if (!pos) continue;
+        // 被渲染上限（或紧闭路段）藏掉的点不在屏上，不该再画框。
+        if (layerState._dots[i].point.show === false) continue;
         const entry = {
           position: pos,
           id: `VEH-${String(i).padStart(4, '0')}`,

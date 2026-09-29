@@ -5,6 +5,7 @@ import { civilAircraftModelSpec } from './modelSpec.js';
 import { CLASS_SCALE_2D } from '../../data/aircraftClass.js';
 import { cockpitContactDotImage } from '../../data/cockpitContactDot.js';
 import { aircraftIcon, TRACKED_ICON_PX } from '../../data/aircraftIcons.js';
+import { trackedCrossfadeIconAlpha } from '../../data/trackedModelRegime.js';
 import {
   cameraPoseSignature,
   horizonOccluder,
@@ -26,6 +27,7 @@ import {
   MODEL_PROX_KEEP_M,
   MODEL_HEADING_OFFSET_DEG,
   IR_RELOAD_BATCH,
+  MODEL_COLOR_BLEND_AMOUNT,
   MODEL_MIN_PX,
   TRACKED_MODEL_MIN_PX,
   TRACKED_MODEL_MAX_PX,
@@ -86,18 +88,19 @@ export function createRendering({
     return Number.POSITIVE_INFINITY;
   }
 
-  function _modelSpec(klass) {
-    const cached = flightState._specCache.get(klass);
+  function _modelSpec(klass, typeCode = null) {
+    const key = typeCode ? `${klass}|${typeCode}` : klass;
+    const cached = flightState._specCache.get(key);
     if (cached) return cached;
-    const spec = civilAircraftModelSpec(klass);
-    flightState._specCache.set(klass, spec);
+    const spec = civilAircraftModelSpec(klass, typeCode);
+    flightState._specCache.set(key, spec);
     return spec;
   }
 
   function _normalBillboardScaleByDistance() {
     // Preserve the established close-range 3× scale. Any smaller owner-visible
     // default belongs in a separate evidence-backed proposal.
-    return new Cesium.NearFarScalar(1000, 3.0, 8000000, 0.5);
+    return new Cesium.NearFarScalar(1000, 1.45, 8000000, 0.32);
   }
 
   function _cockpitBillboardScaleByDistance() {
@@ -141,8 +144,8 @@ export function createRendering({
       _iconKind(icao24, meta?.klass),
       bb._gevIconLarge ? TRACKED_ICON_PX : undefined,
     );
-    bb.width = icao24 === flightState._trackedIcao ? 24 : 20;
-    bb.height = icao24 === flightState._trackedIcao ? 24 : 20;
+    bb.width = icao24 === flightState._trackedIcao ? 15 : 12;
+    bb.height = icao24 === flightState._trackedIcao ? 15 : 12;
     bb.scale = _fleetBillboardScale(icao24, meta?.klass) * limbScale;
     bb.scaleByDistance = _normalBillboardScaleByDistance();
     bb.color = _fleetBillboardColor(icao24).withAlpha(cyberSonarBaseAlpha(bb));
@@ -179,6 +182,19 @@ export function createRendering({
     const h =
       flightState._viewer?.camera?.positionCartographic?.height ?? Infinity;
     return h < MODEL_ALT_CEIL_M;
+  }
+
+  /** GEV fleet cross-fade band (owner 2026-09-28): the 2D→3D fleet handoff used
+   *  to hard-cut every plane's icon at the ceiling. Descend from the ceiling to
+   *  this lower altitude and the icons→models BLEND instead of popping en masse. */
+  const FLEET_MODEL_FADE_LO_M = MODEL_ALT_CEIL_M * 0.55; // ≈440_000
+  function _fleetModelCrossfade() {
+    const h =
+      flightState._viewer?.camera?.positionCartographic?.height ?? Infinity;
+    if (!Number.isFinite(h)) return 1;
+    const a =
+      (h - FLEET_MODEL_FADE_LO_M) / (MODEL_ALT_CEIL_M - FLEET_MODEL_FADE_LO_M);
+    return a < 0 ? 0 : a > 1 ? 1 : a;
   }
 
   /** Active model cap — the eligibility pre-pass AND _ensureModel's admission checks must use the
@@ -282,7 +298,7 @@ export function createRendering({
       Cesium.Ellipsoid.WGS84,
       flightState._scratchGroundCarto,
     );
-    carto.height = h + _modelSpec(meta.klass).bellyM;
+    carto.height = h + _modelSpec(meta.klass, meta.typeCode).bellyM;
     return Cesium.Cartesian3.fromRadians(
       carto.longitude,
       carto.latitude,
@@ -301,6 +317,7 @@ export function createRendering({
   function _driveFleetModelHandoff(icao24, model, bb, pos, course, beforeShow) {
     if (!model) {
       bb.show = true;
+      bb._gevModelIconA = 1;
       return false;
     }
     const displayPos = _modelDisplayPosition(
@@ -311,20 +328,52 @@ export function createRendering({
     if (!displayPos) {
       model.show = false; // no ground evidence → nothing safe to place a depth-tested model at
       bb.show = true;
+      bb._gevModelIconA = 1;
       return false;
     }
     // The matrix is written BEFORE the readiness test on purpose: a model can flip
     // `ready` during scene update after this tick, and a first rendered frame on a
     // stale load-start matrix is the one-frame jump this ordering prevents.
     _modelMatrix(displayPos, course, model.modelMatrix);
+    // GEV (owner 2026-09-28): drive the model's min-pixel floor from RANGE — a
+    // smooth, angle-independent function of distance — instead of Cesium's
+    // bounding-sphere `minimumPixelSize` (which popped the model bigger/smaller
+    // at certain camera angles). px = clamp(projected, MODEL_MIN_PX, MAX).
+    try {
+      const cam = flightState._viewer?.camera;
+      const scene = flightState._viewer?.scene;
+      if (cam?.positionWC && scene) {
+        const spec = _modelSpec(
+          flightState.records.data.get(icao24)?.klass,
+          flightState.records.data.get(icao24)?.typeCode,
+        );
+        model.scale = trackedModelScaleForPixelCap({
+          baseScale: spec.scale,
+          nativeRadiusM: spec.nativeRadiusM,
+          rangeM: Cesium.Cartesian3.distance(cam.positionWC, displayPos),
+          viewportHeightPx: scene.canvas.clientHeight,
+          fovyRad: cam.frustum.fovy,
+          maximumPixelSize: TRACKED_MODEL_MAX_PX,
+          minimumPixelSize: MODEL_MIN_PX,
+        });
+      }
+    } catch (e) {
+      /* viewer not ready — keep the calibrated real scale */
+    }
     if (!model.ready) {
       model.show = false; // not loaded yet → keep the 2D icon, no half-model flash
       bb.show = true;
+      bb._gevModelIconA = 1;
       return false;
     }
-    beforeShow?.();
+    // GEV cross-fade (owner 2026-09-28): fade the icon out and the model in over the
+    // descent band instead of the old one-frame cut. bb._gevModelIconA feeds the
+    // billboard alpha in the fleet tick; the model alpha is passed to beforeShow.
+    const iconA = _fleetModelCrossfade();
+    bb._gevModelIconA = iconA;
+    beforeShow?.(1 - iconA);
     if (!model.show) model.show = true;
-    if (bb.show) bb.show = false; // hand off ONLY once the model renders
+    bb.show = iconA > 0.02; // keep the icon while it still carries opacity, then hide
     return true;
   }
 
@@ -389,8 +438,8 @@ export function createRendering({
   /** Spec identity for a LOADED model: URL and scale together (same-URL classes
    *  differ by scale — airliner vs quadjet both ship airplane.glb). */
 
-  const _specKeyFor = (klass) => {
-    const spec = _modelSpec(klass);
+  const _specKeyFor = (klass, typeCode = null) => {
+    const spec = _modelSpec(klass, typeCode);
     return `${spec.url}@${spec.scale}`;
   };
 
@@ -403,7 +452,7 @@ export function createRendering({
    *  the same rule (its billboard entity is always the fallback visual). */
 
   function _syncModelToClass(icao24) {
-    const key = _specKeyFor(flightState.records.data.get(icao24)?.klass);
+    const key = _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
     const current = flightState._models.get(icao24);
     if (
       (current && current._gevSpecKey !== key) ||
@@ -475,23 +524,37 @@ export function createRendering({
     // aircraft mid-load, the post-await admission below rejects the stale asset.
     // Boost state likewise: the creation options bake it in, so a mid-load
     // toggle must reject too (the reload queue only covers ADMITTED models).
-    const specKey = _specKeyFor(flightState.records.data.get(icao24)?.klass);
+    const specKey = _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
     const loadIrBoost = flightState._irBoost;
     try {
-      const spec = _modelSpec(flightState.records.data.get(icao24)?.klass);
+      const spec = _modelSpec(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
       model = await Cesium.Model.fromGltfAsync({
         url: resolveAsset(spec.url),
         asynchronous: false,
-        minimumPixelSize: MODEL_MIN_PX,
+        // GEV (owner 2026-09-28): 0 — the min-pixel floor is driven per-frame from
+        // range in _driveFleetModelHandoff (Cesium's sphere-based floor caused the
+        // angle-dependent size pop). See trackedCamera.trackedModelScaleForPixelCap.
+        minimumPixelSize: 0,
         scale: spec.scale,
         color: flightState._irBoost ? Cesium.Color.WHITE : _modelColor(icao24),
         colorBlendMode: Cesium.ColorBlendMode.MIX,
         // Launch presentation keeps the code-side tint dominant for every approved
         // model; IR boost removes the remaining diffuse hint with flat UNLIT white.
-        colorBlendAmount: flightState._irBoost ? 1.0 : spec.blendAmount,
-        customShader: flightState._irBoost
-          ? flightState._IR_UNLIT_SHADER
-          : undefined,
+        colorBlendAmount: flightState._irBoost
+          ? 1.0
+          : isMilitaryIcao(icao24)
+            ? MODEL_COLOR_BLEND_AMOUNT
+            : spec.blendAmount,
+        // Colored models render UNLIT so the WHOLE airframe shows its livery:
+        // Cesium's sun-shading leaves the shadowed side flat near-black/grey
+        // (the "half the fuselage is uncolored" artifact). UNLIT emits the
+        // material's baseColor texture directly, orientation be damned.
+        customShader: flightState._IR_UNLIT_SHADER,
+        // The GLB materials are doubleSided; Cesium's Model defaults
+        // backFaceCulling ON and ignores that, so the far shell of the
+        // airframe was culled away (reads as a black/uncolored half). Match
+        // the asset's intent so the WHOLE airframe draws.
+        backFaceCulling: false,
         id: icao24, // so scene.pick returns the icao for click-to-track
       });
     } catch {
@@ -529,7 +592,7 @@ export function createRendering({
       flightState._models.has(icao24) ||
       flightState._models.size >= _modelCap() ||
       // Class reclassified mid-load → this GLB/scale is for the OLD class.
-      _specKeyFor(flightState.records.data.get(icao24)?.klass) !== specKey ||
+      _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode) !== specKey ||
       // IR boost flipped mid-load → this model baked the wrong shader/tint.
       flightState._irBoost !== loadIrBoost;
     if (stale) {
@@ -680,24 +743,30 @@ export function createRendering({
       const gen = flightState._trackedModelGen;
       const trackedSpec = _modelSpec(
         flightState.records.data.get(flightState._trackedIcao)?.klass,
+        flightState.records.data.get(flightState._trackedIcao)?.typeCode,
       );
       const trackedKey = _specKeyFor(
         flightState.records.data.get(flightState._trackedIcao)?.klass,
+        flightState.records.data.get(flightState._trackedIcao)?.typeCode,
       );
       const trackedIrBoost = flightState._irBoost;
       Cesium.Model.fromGltfAsync({
         url: resolveAsset(trackedSpec.url),
         asynchronous: false,
-        minimumPixelSize: TRACKED_MODEL_MIN_PX,
+        // GEV (owner 2026-09-28): 0 — the tracked model's floor is driven per-frame
+        // from range (see the scale call in _updateTrackedModel) so zooming stays
+        // 360° smooth instead of popping at the bounding-sphere threshold.
+        minimumPixelSize: 0,
         scale: trackedSpec.scale,
         color: flightState._irBoost ? Cesium.Color.WHITE : Cesium.Color.CYAN,
         colorBlendMode: Cesium.ColorBlendMode.MIX,
         // The tracked aircraft uses the same dominant light tint as the fleet;
         // IR boost removes the remaining diffuse hint with flat UNLIT white.
         colorBlendAmount: flightState._irBoost ? 1.0 : trackedSpec.blendAmount,
-        customShader: flightState._irBoost
-          ? flightState._IR_UNLIT_SHADER
-          : undefined,
+        // Colored models render UNLIT so the whole airframe shows its livery
+        // (see the fleet loader above for why).
+        customShader: flightState._IR_UNLIT_SHADER,
+        backFaceCulling: false,
         // Pick id (H1): without it, clicking the very plane being tracked read as
         // EMPTY SPACE (scene.pick → primitive with no id) → an unintended
         // deselect. With the icao, the click handler recognizes it as ours.
@@ -722,6 +791,7 @@ export function createRendering({
           if (
             _specKeyFor(
               flightState.records.data.get(flightState._trackedIcao)?.klass,
+              flightState.records.data.get(flightState._trackedIcao)?.typeCode,
             ) !== trackedKey ||
             flightState._irBoost !== trackedIrBoost
           ) {
@@ -795,6 +865,7 @@ export function createRendering({
       if (!flightState._trackedModel.ready) return;
       const spec = _modelSpec(
         flightState.records.data.get(flightState._trackedIcao)?.klass,
+        flightState.records.data.get(flightState._trackedIcao)?.typeCode,
       );
       flightState._trackedModel.scale = trackedModelScaleForPixelCap({
         baseScale: spec.scale,
@@ -806,8 +877,17 @@ export function createRendering({
         viewportHeightPx: flightState._viewer.scene.canvas.clientHeight,
         fovyRad: flightState._viewer.camera.frustum.fovy,
         maximumPixelSize: TRACKED_MODEL_MAX_PX,
+        minimumPixelSize: TRACKED_MODEL_MIN_PX,
       });
-      flightState._trackedModel.show = true;
+      // GEV cross-fade (owner 2026-09-28): the model's opacity mirrors the icon
+      // fade (iconAlpha + modelAlpha = 1), so zooming in/out CROSS-FADES the
+      // aircraft in/out instead of popping the model on the frame the latch flips.
+      const _h = flightState._viewer?.camera?.positionCartographic?.height;
+      const _modelA = 1 - trackedCrossfadeIconAlpha(_h);
+      flightState._trackedModel.show = _modelA > 0.01;
+      flightState._trackedModel.color = (
+        flightState._irBoost ? Cesium.Color.WHITE : Cesium.Color.CYAN
+      ).withAlpha(_modelA);
     }
   }
 
@@ -1020,7 +1100,9 @@ export function createRendering({
           flightState._cockpitContactMode && !isCockpitNear
             ? 1
             : _fleetBillboardScale(icao24, info?.klass),
-        baseAlpha: flightState.records.missingPolls.get(icao24) ? 0.45 : 1,
+        baseAlpha:
+          (flightState.records.missingPolls.get(icao24) ? 0.45 : 1) *
+          (bb._gevModelIconA ?? 1),
         baseColor,
         focusFactor: focus.factor,
         cameraDistanceM,
@@ -1093,7 +1175,7 @@ export function createRendering({
           bb,
           dr,
           course,
-          () => {
+          (modelAlpha) => {
             applyAircraftModelTreatment({
               model,
               // IR boost must survive the per-tick treatment write — otherwise
@@ -1104,11 +1186,15 @@ export function createRendering({
               baseColor: flightState._irBoost
                 ? Cesium.Color.WHITE
                 : _modelColor(icao24),
-              alpha: flightState._irBoost ? 1 : treatment.alpha,
+              // GEV cross-fade: model opacity = 1 − icon opacity, so the airframe
+              // fades in as its icon fades out (no pop). IR boost stays full.
+              alpha: flightState._irBoost ? 1 : modelAlpha,
             });
           },
         );
         if (ownsVisual) continue; // skip billboard rotation
+      } else if (bb._gevModelIconA !== 1) {
+        bb._gevModelIconA = 1; // contact left the model path → icon fully opaque again
       }
 
       if (

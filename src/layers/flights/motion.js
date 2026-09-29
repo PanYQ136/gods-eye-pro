@@ -324,6 +324,7 @@ export function createMotion({
     if (parts.rendering._modelOwnsVisual(icao24)) {
       const spec = parts.rendering._modelSpec(
         flightState.records.data.get(icao24)?.klass,
+        flightState.records.data.get(icao24)?.typeCode,
       );
       const scale = trackedModelScaleForPixelCap({
         baseScale: spec.scale,
@@ -332,6 +333,7 @@ export function createMotion({
         viewportHeightPx: scene.canvas.clientHeight,
         fovyRad: camera.frustum.fovy,
         maximumPixelSize: TRACKED_MODEL_MAX_PX,
+        minimumPixelSize: TRACKED_MODEL_MIN_PX,
       });
       const focalLengthPx =
         scene.canvas.clientHeight / (2 * Math.tan(camera.frustum.fovy / 2));
@@ -500,6 +502,7 @@ export function createMotion({
     ) {
       const spec = parts.rendering._modelSpec(
         flightState.records.data.get(flightState._trackedIcao)?.klass,
+        flightState.records.data.get(flightState._trackedIcao)?.typeCode,
       );
       return modelVisualAnchor(
         flightState._trackedModel.modelMatrix,
@@ -545,6 +548,7 @@ export function createMotion({
       return 0;
     const spec = parts.rendering._modelSpec(
       flightState.records.data.get(flightState._trackedIcao)?.klass,
+      flightState.records.data.get(flightState._trackedIcao)?.typeCode,
     );
     const scale = Number.isFinite(flightState._trackedModel.computedScale)
       ? flightState._trackedModel.computedScale
@@ -559,6 +563,7 @@ export function createMotion({
     ) {
       const spec = parts.rendering._modelSpec(
         flightState.records.data.get(flightState._trackedIcao)?.klass,
+        flightState.records.data.get(flightState._trackedIcao)?.typeCode,
       );
       // Through the model's OWN render chain (modelVisualAnchor's hand-rolled
       // half-correction put this offset on the lateral axis — see

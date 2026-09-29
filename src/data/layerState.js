@@ -357,7 +357,11 @@ const OPTION_GROUPS = Object.freeze({
     // `v=2&l=f&lo=f.m.a` (an OFF link that remembered mode All) would have come
     // back as ON+All. The price is that ON is now written explicitly (`f.e.1`)
     // instead of ridden in on the omission; see `absentTokenValue`.
-    booleanOption('models3d', 'e', true, { absentValue: false }),
+    // GEV owner 2026-09-28: the fleet's 3D models default OFF now. A fresh page
+    // load shows ONLY the detection ("密集") overlay in the Display menu; the
+    // operator switches 3D on by hand. PROXIMITY stays the default MODE for when
+    // it IS enabled. (Supersedes the 2026-08-22 default-ON directive.)
+    booleanOption('models3d', 'e', false, { absentValue: false }),
     enumOption('models3dMode', 'm', 'proximity', ['proximity', 'all'], {
       proximity: 'p',
       all: 'a',

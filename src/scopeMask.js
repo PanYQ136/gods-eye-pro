@@ -101,7 +101,11 @@ const SCOPE_TERMINUS_SAMPLE_MS = 120;
 let _canvas = null;
 let _container = null;
 let _viewer = null;
-let _enabled = true;
+// GEV owner 2026-09-28: the Display menu ships with ONLY the detection
+// ("密集") overlay lit, so the scope mask now defaults OFF on a fresh load
+// (was `true`). The operator re-enables it from the Scope toggle; a share link
+// or a stored session still restores it on.
+let _enabled = false;
 let _featherRatio = SCOPE_FEATHER_RATIO_DEFAULT;
 let _resizeObserver = null;
 let _dprQuery = null;

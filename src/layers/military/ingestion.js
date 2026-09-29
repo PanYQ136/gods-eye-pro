@@ -33,6 +33,7 @@ export function createIngestion({
           {},
           { signal: updateSignal },
         );
+        feed._lastSnapshot = snapshot; // 供 reapply：改渲染上限后立即重放
         updateSignal.throwIfAborted();
         feed._lastStatus = snapshot.status ?? 200;
         feed._lastSource = snapshot.source;
@@ -74,6 +75,15 @@ export function createIngestion({
         feed._activeUpdateControllers.delete(resourceController);
       }
     },
+    /** 用上一帧快照重放（改渲染上限后立即生效，无需联网）。 */
+    reapply(viewer) {
+      if (!feed._lastSnapshot) return;
+      try {
+        applySnapshot(feed._lastSnapshot, viewer || undefined);
+      } catch {
+        /* 非致命：下次轮询会纠正 */
+      }
+    },
   };
 
   return { methods };
@@ -88,6 +98,7 @@ export function createMilitaryFeed(source) {
   feed._backoff = false;
   feed._retryAt = 0;
   feed._lastError = null;
+  feed._lastSnapshot = null;
   feed._activeUpdateControllers = new Set();
   feed._lastStatus = null;
   feed._lastSource = source?.label || 'Aircraft';

@@ -21,6 +21,7 @@ import {
 } from '../../data/transitPresetStyle.js';
 import {
   MARKER_PIXEL_SIZE,
+  RENDER_LIMIT_UNLIMITED,
   ROTATION_REFRESH_MS,
   SELECTED_CARD_REFRESH_MS,
   VISIBILITY_REFRESH_MS,
@@ -65,6 +66,111 @@ export function createRendering({ state, services, parts }) {
     );
   }
 
+  /**
+   * Camera position (world coordinates), with the same cartographic fallback
+   * the visibility sweep uses — Cesium's camera always has `positionWC`, but a
+   * harness (or a pre-frame camera) may only carry the cartographic pose.
+   * @param {Cesium.Cartesian3} scratch Reusable output for the fallback path.
+   * @returns {Cesium.Cartesian3|null}
+   */
+  function cameraWorldPosition(scratch) {
+    const camera = state._viewer?.camera;
+    if (!camera) return null;
+    if (camera.positionWC) return camera.positionWC;
+    if (camera.positionCartographic)
+      return Cesium.Ellipsoid.WGS84.cartographicToCartesian(
+        camera.positionCartographic,
+        scratch,
+      );
+    return null;
+  }
+
+  /** Scratch for the render-limit camera read (never escapes this module). */
+  const cameraLimitPos = new Cesium.Cartesian3();
+
+  /**
+   * 操作员渲染上限准入测试：`state._capAllowed` 为 null 表示不裁剪。
+   * @param {object} entry
+   * @returns {boolean}
+   */
+  function capAllows(entry) {
+    return state._capAllowed == null || state._capAllowed.has(entry);
+  }
+
+  /**
+   * 重算「离相机最近的 N 辆」准入集合（操作员渲染上限 0–999，999 = 不限）。
+   *
+   * 排序对象是整个车队（与 flights / military 的「最近 N 架」同义），不是只在
+   * 视图内的一批：上限说的是「谁可以被画出来」，不应随可见性扫描的顺序漂移。
+   * 选中车辆永远保留，无论距离。全程零网络、零分配(除结果集合与排名数组)。
+   *
+   * @param {Cesium.Cartesian3|null|undefined} cameraPos Camera position (WC).
+   */
+  function refreshRenderLimit(cameraPos) {
+    const limit = state._renderLimit;
+    const vehicles = state._vehicles;
+    if (
+      !Number.isFinite(limit) ||
+      limit >= RENDER_LIMIT_UNLIMITED ||
+      !vehicles ||
+      limit >= vehicles.size
+    ) {
+      state._capAllowed = null;
+      return;
+    }
+    const keep = Math.max(0, Math.floor(limit));
+    const allowed = new Set();
+    if (keep > 0) {
+      // keep > 0 且拿不到相机位置(init 之前)：无法排名 → 不裁剪，
+      // 否则会把整个车队误藏。keep === 0 不需要排名，照常隐藏。
+      if (!cameraPos) {
+        state._capAllowed = null;
+        return;
+      }
+      const ranked = [];
+      for (const entry of vehicles.values()) {
+        const at = entry.marker?.position;
+        if (!at) continue;
+        ranked.push([Cesium.Cartesian3.distanceSquared(cameraPos, at), entry]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      for (let i = 0; i < ranked.length && i < keep; i += 1)
+        allowed.add(ranked[i][1]);
+    }
+    const selected = state._selectedKey
+      ? vehicles.get(state._selectedKey)
+      : null;
+    if (selected) allowed.add(selected);
+    state._capAllowed = allowed;
+  }
+
+  /**
+   * 立即应用渲染上限：用缓存的车队/标记状态重算准入集合并重写 sprite 的
+   * `show`（不联网、不轮询、不重建标记）。setParams 的即时生效入口 —— 否则
+   * 新上限要等下一次可见性扫描或下一次轮询(15s)才看得见。
+   */
+  function applyRenderLimit() {
+    refreshRenderLimit(cameraWorldPosition(cameraLimitPos));
+    const vehicles = state._vehicles;
+    if (vehicles) {
+      let drawn = 0;
+      for (const entry of vehicles.values()) {
+        const marker = entry.marker;
+        if (!marker) continue;
+        marker.show =
+          vehicleInView(entry) &&
+          !entry.heightPending &&
+          entry.surfaceReady !== false &&
+          capAllows(entry);
+        if (marker.show) drawn += 1;
+      }
+      state._shownCount = drawn;
+    }
+    state._detectRevision += 1;
+    syncRenderHold();
+    governorRequestRender('transit-render-limit');
+  }
+
   /** Heights are aligned to work with Google 3D tiles. Rebuild both ends. */
   function refreshEndpoints(entry) {
     if (!entry.sample || entry.sample.fromSeq < 0) return;
@@ -101,7 +207,7 @@ export function createRendering({ state, services, parts }) {
     );
     entry.surfaceReady = !!known;
     entry.heightPending = !known;
-    entry.marker.show = !!known && vehicleInView(entry);
+    entry.marker.show = !!known && vehicleInView(entry) && capAllows(entry);
     if (known) {
       entry.marker.position = state._scratchCartesian;
       entry.hasRendered = true;
@@ -476,6 +582,8 @@ export function createRendering({ state, services, parts }) {
         cameraPosition,
       );
     occluder.cameraPosition = position;
+    // 上限准入集合在扫描之前重算，本次扫描写 `show` 用的就是最新集合。
+    refreshRenderLimit(position);
     const frustum = camera.frustum?.computeCullingVolume(
       position,
       camera.directionWC,
@@ -544,13 +652,21 @@ export function createRendering({ state, services, parts }) {
         }
       }
       entry.marker.show =
-        visible && !entry.heightPending && entry.surfaceReady !== false;
+        visible &&
+        !entry.heightPending &&
+        entry.surfaceReady !== false &&
+        capAllows(entry);
       visibility.heightPending = !!entry.heightPending;
       visibility.surfaceReady = entry.surfaceReady ?? null;
       schedulePlayback(entry);
       changed ||= visible !== wasVisible || wasShown !== entry.marker.show;
     }
-    state._shownCount = state._visible.size;
+    // 真正绘制的数量（上限裁剪后），不是「在视图内」的数量。
+    let drawn = 0;
+    for (const entry of state._visible) {
+      if (entry.marker?.show) drawn += 1;
+    }
+    state._shownCount = drawn;
     if (changed) state._detectRevision++;
     syncRenderHold();
     governorRequestRender('transit-visibility');
@@ -601,6 +717,8 @@ export function createRendering({ state, services, parts }) {
     cartesianFor,
     refreshEndpoints,
     refreshVisibility,
+    refreshRenderLimit,
+    applyRenderLimit,
     vehicleInView,
     addMarker,
     paintMode,

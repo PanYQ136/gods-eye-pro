@@ -1,0 +1,285 @@
+/* ═══════════════════════════════════════════════════════════════
+   GEV 中文增强包 —— 汉化排版 + UI 美化 + 性能提示（非侵入式覆盖层）
+   由 index.html 引用；删除该 <link> 即完全还原。
+   仅使用原设计变量（--accent 等），保证与原生风格一致。
+   ═══════════════════════════════════════════════════════════════ */
+
+/* 1) 中文优先字体栈：让汉字走系统黑体，而不是退回到等宽英文字体的“天书” */
+:root {
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code',
+    'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', monospace;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont,
+    'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+}
+
+/* 2) 玻璃面板美化：更细腻的描边、阴影、顶高光与一丝青色辉光 */
+.panel-inner,
+#pp-toggles:not(.collapsed),
+.pp-toggle-btn,
+.pp-header-row,
+#param-slider-panel,
+#data-panel:not(.collapsed) .data-panel-inner,
+#cctv-panel:not(.collapsed) .cctv-panel-inner,
+#scene-panel:not(.collapsed) .scene-panel-inner,
+#global-context-panel:not(.collapsed) .global-context-panel-inner,
+#radio-panel:not(.collapsed) .radio-panel-inner,
+#weather-panel:not(.collapsed) .weather-panel-inner,
+#recent-imagery-panel:not(.collapsed) .recent-imagery-panel-inner,
+.context-radio-mini,
+.key-setup,
+.first-run-launcher {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow:
+    0 10px 40px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.035) inset,
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 0 24px rgba(0, 212, 255, 0.05) !important;
+}
+
+/* 3) 面板标题/标签：一点青色点缀，层次更清晰 */
+.panel-title,
+.pp-header-label,
+.param-panel-title,
+.map-source-heading,
+.cctv-summary-label,
+.pp-slider-mini-label {
+  color: rgba(130, 228, 255, 0.78) !important;
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.16);
+}
+
+/* 4) 交互更顺滑（显式属性，避免 all 触发 outline 过渡） */
+.style-btn,
+.pp-toggle-btn,
+.scene-btn,
+.panel-collapse-btn,
+.map-stack-chip,
+.data-toggle-btn,
+.context-mode-button,
+.pp-mode-btn,
+.rail-card {
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease !important;
+}
+
+/* 5) 滚动条美化 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 212, 255, 0.35) transparent;
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.25);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.45);
+  background-clip: padding-box;
+}
+
+/* 6) 标题栏：更精致的呼吸光晕 */
+#title-bar h1 { letter-spacing: 6px; }
+#title-bar .title-glow { animation: gev-title-glow 6s ease-in-out infinite; }
+@keyframes gev-title-glow {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.78; }
+}
+
+/* 7) 汉化后排版：收窄字距、取消大写字形，让中文更透气 */
+body.gev-zh .panel-title,
+body.gev-zh .pp-header-label,
+body.gev-zh .pp-label,
+body.gev-zh .btn-label,
+body.gev-zh .panel-mini-label,
+body.gev-zh .pp-slider-mini-label,
+body.gev-zh .param-label,
+body.gev-zh .param-panel-title,
+body.gev-zh .map-source-heading,
+body.gev-zh .scene-btn,
+body.gev-zh #style-indicator .indicator-label,
+body.gev-zh .cockpit-readout-label,
+body.gev-zh .cockpit-kicker,
+body.gev-zh .panel-layer-toggle {
+  letter-spacing: 0.5px !important;
+  text-transform: none !important;
+}
+body.gev-zh #title-bar .subtitle { letter-spacing: 3px; }
+body.gev-zh .btn-label { font-size: 12px; }
+
+/* 8) 中 / EN 切换药丸 */
+#gev-lang-toggle {
+  position: fixed;
+  left: 36px;
+  bottom: 74px;
+  z-index: 151;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: var(--glass-bg);
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 18px rgba(0, 212, 255, 0.08);
+  transition: all 0.18s ease;
+}
+#gev-lang-toggle:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 22px rgba(0, 212, 255, 0.22);
+}
+#gev-lang-toggle .gev-zh-on { color: #ffffff; font-weight: 600; }
+
+/* 9) 选项框自适应：文字多了就撑开，绝不截断 ────────────────────── */
+.pp-select {
+  width: auto !important;
+  min-width: 78px;
+  max-width: min(100%, 340px);
+  padding-right: 22px;
+  text-overflow: clip;
+}
+select,
+option {
+  font-family: var(--font-sans);
+}
+
+/* 分段控件（Elastic/Weighted、Area/Line/Pin…）：按文字自适应，窄容器内自动换行 */
+.pp-mode-seg {
+  flex-wrap: wrap;
+}
+.pp-mode-seg > .pp-mode-btn {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: max-content;
+  white-space: nowrap;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+/* 视觉预设按钮：去掉固定窄宽，长词（黑白胶片 / 绿屏 CRT）不再被裁 */
+.style-btn,
+#command-dock .style-btn,
+#command-dock .dock-popover-content .style-btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: max-content;
+}
+
+/* 不截断：预设标签、分段按钮、开关标签、地图源 chip */
+.style-btn .btn-label,
+.pp-mode-btn,
+.pp-toggle-btn .pp-label,
+.map-stack-chip {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* 地图源 chip 自适应 */
+.map-stack-chip {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: max-content;
+}
+
+/* 参数滑杆标签：中文不截断 */
+.pp-slider-mini-label {
+  white-space: nowrap;
+  overflow: visible;
+}
+
+/* 10) 定位按钮 + 提示（gev-locate.js 用）──────────────────────── */
+#gev-locate-btn {
+  position: fixed;
+  left: 36px;
+  bottom: 108px;
+  z-index: 151;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--accent);
+  background: var(--glass-bg);
+  border: 1px solid rgba(0, 212, 255, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 18px rgba(0, 212, 255, 0.08);
+  transition: all 0.18s ease;
+}
+#gev-locate-btn:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 22px rgba(0, 212, 255, 0.22);
+}
+#gev-locate-btn .gev-locate-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+#gev-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%) translateY(10px);
+  z-index: 152;
+  padding: 9px 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #e8fbff;
+  background: rgba(3, 20, 28, 0.86);
+  border: 1px solid rgba(0, 212, 255, 0.32);
+  border-radius: 10px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+#gev-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* 11) 视觉预设网格：12 个风格自适应换行，不裁切、不出框 ───────────── */
+#command-dock .button-grid,
+#command-dock .dock-popover-content .button-grid {
+  flex-wrap: wrap !important;
+  overflow: visible !important;
+  row-gap: 0.3rem;
+  max-width: min(94vw, 760px);
+  justify-content: flex-start;
+}
+#command-dock .style-btn,
+#command-dock .dock-popover-content .style-btn {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: max-content !important;
+  max-width: 9.5rem;
+}
+#command-dock .style-btn .btn-label {
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* 12) 折叠开关：更大的点击热区，避免“点了没反应/找不到” ─────────── */
+.panel-collapse-btn,
+.dock-tray-toggle {
+  min-width: 22px;
+  min-height: 22px;
+  cursor: pointer;
+}

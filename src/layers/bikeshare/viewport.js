@@ -5,6 +5,7 @@ import {
   ACTIVATION_ENTER_ALTITUDE_M,
   CITY_RANGE_BASE_KM,
   CAMERA_DEBOUNCE_MS,
+  RENDER_LIMIT_MAX,
 } from './policy.js';
 
 export function createViewport({ state: layerState, services, parts, source }) {
@@ -232,6 +233,13 @@ export function createViewport({ state: layerState, services, parts, source }) {
   function scheduleProximityCheck() {
     clearTimeout(layerState._cameraDebounceTimer);
     layerState._cameraDebounceTimer = setTimeout(() => {
+      // The operator limit ranks stations by distance to the camera, so a
+      // settled camera can change which stations are inside it. Only while a
+      // limit is actually active — otherwise this pass is pure overhead.
+      if (layerState._renderLimit < RENDER_LIMIT_MAX) {
+        parts.rendering.applyRenderLimit();
+        governorRequestRender('bikeshare-render-limit');
+      }
       void runProximityCheck();
     }, CAMERA_DEBOUNCE_MS);
   }

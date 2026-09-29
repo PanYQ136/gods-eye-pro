@@ -48,22 +48,52 @@ export function celestrakProxy() {
     }
   }
 
+  const TLE_USER_AGENT =
+    'gods-eye-view-celestrak-proxy/1.0 (+https://github.com/bilawalsidhu/gods-eye-view)';
+
+  /**
+   * Ordered TLE upstreams for a group. CelesTrak is primary; the two keyless
+   * mirrors below serve the SAME CelesTrak groups in 3LE and cover every group
+   * this app loads (including `starlink`). Tried in turn so one host being
+   * down or rate-limited (e.g. CelesTrak's ~2 h per-IP 403 window, which 502s
+   * `active`/`starlink`) never empties the satellites layer.
+   *  - retlector.eu            — community CelesTrak GP proxy, /[group]/tle
+   *  - satvisor-data (GitHub)  — GH-Actions mirror refreshed ~2 hourly
+   */
+  function tleUpstreamUrls(group) {
+    const slug = encodeURIComponent(group);
+    return [
+      celestrakTleUrl(group).toString(),
+      `https://raw.githubusercontent.com/satvisorcom/satvisor-data/master/celestrak/tle/${slug}.tle`,
+      `https://retlector.eu/${slug}/tle`,
+    ];
+  }
+
   async function fetchUpstream(group) {
-    const url = celestrakTleUrl(group);
-    const res = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(20000),
-      // CelesTrak 403s bulk groups (e.g. `active`) unless the request carries a
-      // descriptive User-Agent with a contact point.
-      headers: {
-        'User-Agent':
-          'gods-eye-view-celestrak-proxy/1.0 (+https://github.com/bilawalsidhu/gods-eye-view)',
-      },
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await res.text();
-    // An upstream error page parses to zero TLEs — treat as failure, keep cache.
-    if (!/^1 /m.test(body)) throw new Error('no TLE lines in response');
-    return { at: Date.now(), body };
+    let lastError = null;
+    for (const url of tleUpstreamUrls(group)) {
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(20000),
+          // CelesTrak 403s bulk groups (e.g. `active`) unless the request
+          // carries a descriptive User-Agent with a contact point.
+          headers: { 'User-Agent': TLE_USER_AGENT },
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.text();
+        // An upstream error page parses to zero TLEs — treat as failure, keep cache.
+        if (!/^1 /m.test(body)) throw new Error('no TLE lines in response');
+        return { at: Date.now(), body };
+      } catch (err) {
+        lastError = err;
+        console.warn(
+          `[celestrak-proxy] upstream failed (${url.split('/')[2]}): ${
+            err?.message || err
+          }`,
+        );
+      }
+    }
+    throw lastError || new Error('all TLE upstreams failed');
   }
 
   const installMiddleware = (server) => {

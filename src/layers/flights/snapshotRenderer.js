@@ -7,6 +7,7 @@ import {
 } from '../../data/motionModel.js';
 import { aircraftIcon } from '../../data/aircraftIcons.js';
 import { POSITION_HISTORY_LIMIT } from './recordPolicy.js';
+import { FLEET_ADD_M, FLEET_KEEP_M } from './policy.js';
 
 /** Apply reconciled aircraft records to Cesium resources and follow state. */
 export function createFlightSnapshotRenderer({
@@ -40,6 +41,34 @@ export function createFlightSnapshotRenderer({
       : null;
     const floorWarmPoints = [];
 
+    // 操作员渲染上限 (0–999)：按到相机子午点的距离排序，只放行最近的 N 架。
+    // 针对原始快照排序，才是真正意义上的「最近 N 架」，其后再叠加 FLEET_ADD/KEEP 距离门。
+    let capAllowed = null;
+    const capN = flightState._renderLimit;
+    if (
+      Number.isFinite(capN) &&
+      capN < snapshot.records.length &&
+      viewerLatDeg != null &&
+      viewerLonDeg != null
+    ) {
+      const ranked = [];
+      for (const o of snapshot.records) {
+        const d = queries._approxDistanceKm(
+          viewerLatDeg,
+          viewerLonDeg,
+          o.latitude,
+          o.longitude,
+        );
+        if (Number.isFinite(d)) ranked.push([d, o.id]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      capAllowed = new Set();
+      const keep = Math.max(0, Math.floor(capN));
+      for (let i = 0; i < ranked.length && i < keep; i += 1)
+        capAllowed.add(ranked[i][1]);
+      if (flightState._trackedIcao) capAllowed.add(flightState._trackedIcao);
+    }
+
     // Classification and display policy consume source-independent observations.
     refreshMilitaryRegistryIfStale();
     for (const observation of snapshot.records) {
@@ -66,7 +95,27 @@ export function createFlightSnapshotRenderer({
         continue;
       }
 
-      currentIcaos.add(icao24);
+      // 超出操作员上限：当远处接触一样卸掉（跟踪机永远保留）。
+      if (
+        capAllowed &&
+        !capAllowed.has(icao24) &&
+        icao24 !== flightState._trackedIcao
+      ) {
+        const capBb = flightState._billboards.get(icao24);
+        if (capBb) {
+          flightState._billboardCollection.remove(capBb);
+          flightState._billboards.delete(icao24);
+        }
+        rendering._releaseModel(icao24);
+        records.forget(icao24);
+        flightState._cullPositions.delete(icao24);
+        flightState._positionHistory.delete(icao24);
+        flightState._displayCourse.delete(icao24);
+        flightState._groundSnap.forget(icao24);
+        flightState._displayFloorState.delete(icao24);
+        continue;
+      }
+
       const { prevMeta, meta, groundFlipped, fixEpochMs } = records.receive(
         observation,
         {
@@ -76,6 +125,43 @@ export function createFlightSnapshotRenderer({
           floorWarmPoints,
         },
       );
+      // Viewport-proximate fleet (owner 2026-09): the BillboardCollection's
+      // per-frame update visits EVERY member, so carrying all global traffic
+      // made frame cost scale with the planet, not the screen — the horizon
+      // occluder only HID far sprites, it never removed them from the update
+      // loop. Keep a contact's billboard only within FLEET_KEEP_M of the
+      // camera and create one only within the smaller FLEET_ADD_M (KEEP > ADD
+      // gives add/remove hysteresis, no flicker at the edge). A far contact
+      // sheds its billboard + cached state and skips the rest of the
+      // reconcile; it re-joins cleanly when the camera pans back over it. The
+      // tracked contact and a null viewer (no camera yet) always pass through.
+      if (viewerLatDeg != null && icao24 !== flightState._trackedIcao) {
+        const carried = flightState._billboards.has(icao24);
+        const limitM = carried ? FLEET_KEEP_M : FLEET_ADD_M;
+        const distM =
+          queries._approxDistanceKm(
+            viewerLatDeg,
+            viewerLonDeg,
+            meta.rawLat,
+            meta.rawLon,
+          ) * 1000;
+        if (Number.isFinite(distM) && distM > limitM) {
+          const farBb = flightState._billboards.get(icao24);
+          if (farBb) {
+            flightState._billboardCollection.remove(farBb);
+            flightState._billboards.delete(icao24);
+          }
+          rendering._releaseModel(icao24);
+          records.forget(icao24);
+          flightState._cullPositions.delete(icao24);
+          flightState._positionHistory.delete(icao24);
+          flightState._displayCourse.delete(icao24);
+          flightState._groundSnap.forget(icao24);
+          flightState._displayFloorState.delete(icao24);
+          continue;
+        }
+      }
+      currentIcaos.add(icao24);
       const position = Cesium.Cartesian3.fromDegrees(
         meta.rawLon,
         meta.rawLat,

@@ -40,6 +40,14 @@ export const MAX_VEHICLES_TOTAL = 15_000;
 /** A vehicle absent from this many consecutive polls is removed. */
 export const MISSED_POLLS_TO_DROP = 2;
 
+/**
+ * 操作员渲染上限 (0–999)：只渲染离相机最近的 N 辆（0 = 只显示选中车辆）。
+ * 999 视为「不限」（默认）——与 flights / military 同一语义，保持改造前
+ * 的行为逐字节不变；由非侵入 UI（gev-layer-limits.js）经
+ * `dataManager.setLayerParams('transit', { renderLimit: n }, { origin: 'user' })` 设置。
+ */
+export const RENDER_LIMIT_UNLIMITED = 999;
+
 // --- Age policy ---
 /**
  * Oldest fix still drawn, in ms. Past this a vehicle is REMOVED, not merely

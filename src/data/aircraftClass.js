@@ -513,6 +513,25 @@ export const CLASS_MODEL_REAL = {
   light: { url: '/models/c172.glb', bellyM: 1.36, radiusM: 7.0 },
   bizjet: { url: '/models/citation2.glb', bellyM: 2.86, radiusM: 11.24 },
   uav: { url: '/models/mq9.glb', bellyM: 2.02, radiusM: 12.0 },
-  widebody: { url: '/models/b789.glb', bellyM: 7.81, radiusM: 44.08 },
   turboprop: { url: '/models/atr72.glb', bellyM: 3.81, radiusM: 19.49 },
+  airliner: { url: '/models/a320.glb', bellyM: 5.64, radiusM: 19.61 },
+  widebody: { url: '/models/a350.glb', bellyM: 8.52, radiusM: 36.41 },
+  quadjet: { url: '/models/a380.glb', bellyM: 10.96, radiusM: 43.25 },
+};
+
+/** Per-TYPE overrides (ICAO type designator → a baked per-type GLB). Same bake
+ *  convention and shape as CLASS_MODEL_REAL, consulted BEFORE it, so a B738
+ *  draws a 737 airframe rather than its class's generic airliner mesh. */
+const MODEL_A320 = { url: '/models/a320.glb', bellyM: 5.64, radiusM: 19.61 };
+const MODEL_A350 = { url: '/models/a350.glb', bellyM: 8.52, radiusM: 36.41 };
+const MODEL_A380 = { url: '/models/a380.glb', bellyM: 10.96, radiusM: 43.25 };
+const MODEL_B737 = { url: '/models/b737.glb', bellyM: 6.19, radiusM: 20.93 };
+export const TYPE_MODEL_REAL = {
+  A319: MODEL_A320, A320: MODEL_A320, A321: MODEL_A320,
+  A20N: MODEL_A320, A21N: MODEL_A320,
+  A350: MODEL_A350, A359: MODEL_A350, A35K: MODEL_A350,
+  A380: MODEL_A380, A388: MODEL_A380,
+  B736: MODEL_B737, B737: MODEL_B737, B738: MODEL_B737, B739: MODEL_B737,
+  B37M: MODEL_B737, B38M: MODEL_B737, B39M: MODEL_B737, B3XM: MODEL_B737,
+  B73X: MODEL_B737,
 };

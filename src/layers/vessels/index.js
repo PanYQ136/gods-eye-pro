@@ -36,7 +36,9 @@ export function createVesselLayer({ source, services, options = {} } = {}) {
     feed: vesselState.state.feed,
     readSource: () => vesselState._source,
     readViewer: () => vesselState.state.viewer,
-    getRowLimit: parts.rendering.renderRowLimit,
+    // 取数上限 ≠ 渲染上限：始终按旧上限取数，操作员 renderLimit 只作用于客户端渲染，
+    // 这样调大上限可以立即从上一帧缓存重放。
+    getRowLimit: parts.rendering.fetchRowLimit,
     readCount: () => vesselState.state.records.all.length,
     applyRows: parts.snapshots.reconcileVessels,
     classifySnapshot: parts.queries.classifyAisFeedSnapshot,

@@ -1,6 +1,11 @@
-import { STATUS_POLL_MS } from './policy.js';
+import {
+  STATUS_POLL_MS,
+  RENDER_LIMIT_MIN,
+  RENDER_LIMIT_MAX,
+} from './policy.js';
 
 export function createControls({ state: layerState, services, parts, source }) {
+  const governorRequestRender = services.render?.governorRequestRender;
   const methods = {
     id: 'bikeshare',
 
@@ -11,6 +16,37 @@ export function createControls({ state: layerState, services, parts, source }) {
     source: 'GBFS',
 
     updateInterval: STATUS_POLL_MS,
+
+    /**
+     * Live layer params.
+     * `renderLimit` (0–999) keeps only the stations nearest the camera
+     * rendered; 999 means unlimited (the default) and 0 renders nothing but a
+     * selected station.
+     * @param {{renderLimit?: number}} params
+     * @returns {boolean} Always true.
+     */
+    setParams(params = {}) {
+      if (Number.isFinite(params.renderLimit)) {
+        const limit = Math.max(
+          RENDER_LIMIT_MIN,
+          Math.min(RENDER_LIMIT_MAX, Math.floor(params.renderLimit)),
+        );
+        if (limit !== layerState._renderLimit) {
+          layerState._renderLimit = limit;
+          // Re-rank the stations already in hand and repaint — no GBFS request,
+          // no city re-activation, so the limit lands immediately.
+          parts.rendering.applyRenderLimit();
+          if (typeof governorRequestRender === 'function')
+            governorRequestRender('bikeshare-render-limit');
+          else layerState._viewer?.scene?.requestRender?.();
+        }
+      }
+      return true;
+    },
+
+    getParams() {
+      return { renderLimit: layerState._renderLimit };
+    },
 
     /**
      * Return a sampled array of detectable station objects for HUD overlay rendering.

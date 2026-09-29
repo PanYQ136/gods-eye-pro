@@ -1,5 +1,28 @@
 const clean = (value) => String(value || '').trim();
 
+// GEV (owner 2026-09-28): Google 3D tiles need a network path to Google/ion.
+// In CN (or on a phone behind a blocked path) the request can stall forever with
+// no error, hanging the startup await at "Loading Google 3D Tiles...". Bound each
+// provider attempt so a dead path falls through to the keyless globe instead.
+const TILE_TIMEOUT_MS = 12000;
+const withTimeout = (promise, ms, label) =>
+  new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+
 /**
  * Decide which map provider can deliver the best startup experience.
  * @param {{googleApiKey?: string, cesiumToken?: string}} credentials
@@ -38,8 +61,16 @@ export async function loadPhotorealisticTileset(
   for (const attempt of attempts) {
     try {
       const tileset = attempt.googleKey
-        ? await createGoogleDirectTileset(Cesium, attempt.googleKey)
-        : await createGoogleIonTileset(Cesium, ionToken);
+        ? await withTimeout(
+            createGoogleDirectTileset(Cesium, attempt.googleKey),
+            TILE_TIMEOUT_MS,
+            'Google 3D direct',
+          )
+        : await withTimeout(
+            createGoogleIonTileset(Cesium, ionToken),
+            TILE_TIMEOUT_MS,
+            'Google 3D ion',
+          );
       return { tileset, route: attempt.route, errors };
     } catch (error) {
       errors.push(error instanceof Error ? error : new Error(String(error)));

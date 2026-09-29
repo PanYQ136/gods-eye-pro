@@ -33,6 +33,8 @@ import {
   LOCAL_ADSB_SYNC_MS,
   LOCAL_ADSB_TICK_MS,
   LOCAL_ADSB_UAT_RING_COLOR,
+  RENDER_LIMIT_MAX,
+  RENDER_LIMIT_MIN,
 } from './policy.js';
 import { localAdsbStatus } from './status.js';
 
@@ -143,6 +145,9 @@ export function createLocalAdsbLayer({
   let selectedTrail = null;
   let trailHeadSeq = 0;
   let models = null;
+  /** Operator render limit (0–999): only the N aircraft nearest the camera are
+   *  rendered (0 = only a selected one); 999 means unlimited, the default. */
+  let renderLimit = 25;
   let geoidReady = false;
   let rejectedFixes = 0;
   let state = receiver.getState();
@@ -160,6 +165,13 @@ export function createLocalAdsbLayer({
 
   function displayPreferences() {
     return services.display?.getParams?.() || DEFAULT_DISPLAY;
+  }
+
+  /** The DISPLAY 3D preferences plus this layer's own operator render limit.
+   *  The models module derives which models it builds from the same call, so
+   *  the cap (and the selected aircraft it must keep) rides along with them. */
+  function modelPreferences() {
+    return { ...displayPreferences(), renderLimit, keepId: selectedId };
   }
 
   function markSourcesChanged(reason) {
@@ -483,6 +495,8 @@ export function createLocalAdsbLayer({
     if (!selectedId) return;
     selectedId = null;
     releaseTrail();
+    // The freed aircraft is no longer exempt from the operator limit.
+    if (renderLimit < RENDER_LIMIT_MAX) applyRenderLimit();
     clearSelectedEntityContextForLayer(LAYER_ID, { evicted });
   }
 
@@ -508,6 +522,48 @@ export function createLocalAdsbLayer({
       const marker = markers.get(id);
       if (marker) enrichment.request(marker.record);
     }
+  }
+
+  /**
+   * Operator render limit (0–999): only the N markers nearest the camera stay
+   * visible; the selected aircraft is always kept. 999 means unlimited.
+   *
+   * Decides from the markers already heard — no receiver or feed request — and
+   * the 3D models follow through `models.eligible`, so this is also half of why
+   * a limit change lands immediately (`modelPreferences` is the other half).
+   * @returns {number} Markers left visible.
+   */
+  function applyRenderLimit() {
+    const raw = Number(renderLimit);
+    const limit = Number.isFinite(raw)
+      ? Math.max(RENDER_LIMIT_MIN, Math.min(RENDER_LIMIT_MAX, Math.floor(raw)))
+      : RENDER_LIMIT_MAX;
+    // Nothing to rank against (an early boot, a test double): degrade to
+    // unlimited rather than blanking the layer.
+    const camera = viewer?.camera?.positionWC;
+    let allowed = null;
+    if (limit < RENDER_LIMIT_MAX && camera) {
+      const ranked = [];
+      for (const [id, marker] of markers) {
+        if (!marker.position) continue;
+        ranked.push([
+          Cesium.Cartesian3.distanceSquared(camera, marker.position),
+          id,
+        ]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      allowed = new Set();
+      for (let i = 0; i < ranked.length && i < limit; i += 1)
+        allowed.add(ranked[i][1]);
+    }
+    let visible = 0;
+    for (const [id, marker] of markers) {
+      if (!marker.entity) continue;
+      const show = allowed ? allowed.has(id) || id === selectedId : true;
+      if (marker.entity.show !== show) marker.entity.show = show;
+      if (show) visible += 1;
+    }
+    return visible;
   }
 
   function sync() {
@@ -544,6 +600,7 @@ export function createLocalAdsbLayer({
       } else services.overlays?.refreshReadout?.(selected.entity);
     }
     requestEnrichment();
+    applyRenderLimit();
     updateRenderHold();
     if (live.size || removed) governorRequestRender('local-adsb-update');
     // Detection re-solves labels only when the set of contacts changes, not
@@ -556,7 +613,7 @@ export function createLocalAdsbLayer({
     if (!enabled || !markers.size) return;
     const at = now();
     for (const marker of markers.values()) updateDisplay(marker, at);
-    models?.frame(markers, displayPreferences(), at);
+    models?.frame(markers, modelPreferences(), at);
   }
 
   function scheduleSync(nextState) {
@@ -577,6 +634,13 @@ export function createLocalAdsbLayer({
     enrichment.request(marker.record, { selected: true });
     marker.entity.gevLabelModel = cardModel(marker, now());
     selectEntityContext(marker.entity);
+    // A selected aircraft is exempt from the operator limit and must be on
+    // screen even when a programmatic selection picked one the cap was hiding
+    // (its model is admitted at the next eligibility pass).
+    if (renderLimit < RENDER_LIMIT_MAX) {
+      models?.invalidateEligibility();
+      applyRenderLimit();
+    }
     if (!reselect) startTrail(marker);
     governorRequestRender('local-adsb-selection');
     return true;
@@ -665,12 +729,16 @@ export function createLocalAdsbLayer({
     removePreRender = null;
   }
 
-  function positionRows(maxCount = 500) {
+  function positionRows(maxCount = 500, { visibleOnly = false } = {}) {
     if (!enabled) return [];
     const rows = [];
     for (const marker of markers.values()) {
       if (rows.length >= maxCount) break;
       if (!marker.position) continue;
+      // A marker the operator's render limit hides is not on screen, so the
+      // detection overlay must not bracket or label it (Flights skips hidden
+      // billboards the same way).
+      if (visibleOnly && marker.entity?.show === false) continue;
       const carto = Cesium.Cartographic.fromCartesian(marker.position);
       rows.push({
         id: marker.record.icao,
@@ -692,6 +760,41 @@ export function createLocalAdsbLayer({
     source: LAYER_SOURCE,
     updateInterval: 0,
     statsRefreshInterval: LOCAL_ADSB_TICK_MS,
+
+    /**
+     * Live layer params.
+     * `renderLimit` (0–999) renders only the N aircraft nearest the camera
+     * (0 = only a selected one); 999 means unlimited and is the default.
+     * @param {{renderLimit?: number}} params
+     * @returns {boolean} Always true.
+     */
+    setParams(params = {}) {
+      if (Number.isFinite(params.renderLimit)) {
+        const limit = Math.max(
+          RENDER_LIMIT_MIN,
+          Math.min(RENDER_LIMIT_MAX, Math.floor(params.renderLimit)),
+        );
+        if (limit !== renderLimit) {
+          renderLimit = limit;
+          // Instant: re-rank the markers already heard and re-derive which of
+          // them may carry a 3D model — no receiver or feed request.
+          if (enabled) {
+            models?.invalidateEligibility();
+            sync();
+            frame();
+          } else {
+            applyRenderLimit();
+          }
+          governorRequestRender('local-adsb-render-limit');
+        }
+      }
+      return true;
+    },
+
+    getParams() {
+      return { renderLimit };
+    },
+
     /** The shared receiver session, also driven by the Radio panel card. */
     receiver,
     /** Decoder-feed session; the Radio card shows its one-line summary. */
@@ -833,14 +936,16 @@ export function createLocalAdsbLayer({
     },
 
     getDetectableObjects(options = {}) {
-      return positionRows(options.maxCount).map((row) => ({
-        position: row.position,
-        sourceId: row.id,
-        // Label only a decoded callsign; never substitute the raw ICAO hex.
-        id: row.callsign || '',
-        type: 'AIR',
-        skipLabel: false,
-      }));
+      return positionRows(options.maxCount, { visibleOnly: true }).map(
+        (row) => ({
+          position: row.position,
+          sourceId: row.id,
+          // Label only a decoded callsign; never substitute the raw ICAO hex.
+          id: row.callsign || '',
+          type: 'AIR',
+          skipLabel: false,
+        }),
+      );
     },
   };
 }

@@ -95,10 +95,13 @@ export function createLabels({ state: layerState, services, parts, source }) {
   function _syncIssOverlay() {
     // Hidden when ISS is the tracked subject, and equally when ISS is DOCKED to
     // whatever is tracked: its ambient label would otherwise sit underneath the
-    // tracked card at the same position.
+    // tracked card at the same position. Also hidden when the operator's render
+    // cap has dropped the ISS dot — the label is an overlay primitive, not a
+    // point, so it would keep floating over empty sky on its own.
     const visible =
       layerState._enabled &&
       layerState._params.showOrbits &&
+      (parts.rendering?._pointAllowedByRenderCap?.(ISS_NORAD) ?? true) &&
       layerState._trackedNorad !== ISS_NORAD &&
       !layerState._dockedCompanions.has(ISS_NORAD) &&
       layerState._catalog.has(ISS_NORAD) &&

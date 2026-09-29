@@ -4,6 +4,11 @@ import { noirShader } from '../styles/noir.js';
 import { snowShader } from '../styles/snow.js';
 import { nightVisionShader } from '../styles/surveillance.js';
 import { thermalShader } from '../styles/thermal.js';
+import { amberShader } from '../styles/amber.js';
+import { ghostShader } from '../styles/ghost.js';
+import { predatorShader } from '../styles/predator.js';
+import { xrayShader } from '../styles/xray.js';
+import { cinemaShader } from '../styles/cinema.js';
 import { BLOOM_INTENSITY_DEFAULT } from '../bloom.js';
 
 /** Duration (ms) for shader intensity crossfade between style presets. */
@@ -16,6 +21,11 @@ export const STYLES = {
   anime: animeShader,
   noir: noirShader,
   snow: snowShader,
+  amber: amberShader,
+  ghost: ghostShader,
+  predator: predatorShader,
+  xray: xrayShader,
+  cinema: cinemaShader,
 };
 
 /**
@@ -43,9 +53,12 @@ export const MILITARY_DETECTION_PRESET = Object.freeze({
 /** Baseline post-processing settings applied on first load (before share-link restore). */
 export const GLOBAL_POST_DEFAULTS = {
   bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
-  sharpen: { enabled: true, intensity: 49 },
+  // GEV (owner 2026-09-28): a fresh page load shows ONLY the detection overlay
+  // (the "密集" / DETECT toggle). Sharpen and HUD now ship OFF — the operator
+  // turns them on by hand. Detection below stays ON as before.
+  sharpen: { enabled: false, intensity: 49 },
   hudVariant: 'tactical',
-  hudVisible: true,
+  hudVisible: false,
   // Detection is ON for EVERY style on a first run, Normal included (owner
   // directive 2026-08-22: "detect should also be on by default"). It is the
   // same preset object the military styles and Contacts already apply, so there
@@ -111,6 +124,56 @@ export const STYLE_PRESET_DEFAULTS = {
     hudVisible: true,
     detection: MILITARY_DETECTION_PRESET,
   },
+  amber: {
+    bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
+    sharpen: { enabled: true, intensity: 49 },
+    styleParams: {
+      amber: { warmth: 0.5, scan: 0.6 },
+    },
+    hudVariant: 'tactical',
+    hudVisible: true,
+    detection: MILITARY_DETECTION_PRESET,
+  },
+  ghost: {
+    bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
+    sharpen: { enabled: true, intensity: 49 },
+    styleParams: {
+      ghost: { contrast: 0.55, noise: 0.35 },
+    },
+    hudVariant: 'tactical',
+    hudVisible: true,
+    detection: MILITARY_DETECTION_PRESET,
+  },
+  predator: {
+    bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
+    sharpen: { enabled: true, intensity: 49 },
+    styleParams: {
+      predator: { gain: 0.35, tint: 0.25 },
+    },
+    hudVariant: 'tactical',
+    hudVisible: true,
+    detection: MILITARY_DETECTION_PRESET,
+  },
+  xray: {
+    bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
+    sharpen: { enabled: true, intensity: 49 },
+    styleParams: {
+      xray: { edge: 0.6, lift: 0.12 },
+    },
+    hudVariant: 'tactical',
+    hudVisible: true,
+    detection: MILITARY_DETECTION_PRESET,
+  },
+  cinema: {
+    bloom: { enabled: false, intensity: BLOOM_INTENSITY_DEFAULT },
+    sharpen: { enabled: true, intensity: 49 },
+    styleParams: {
+      cinema: { grade: 0.5, contrast: 0.5 },
+    },
+    hudVariant: 'tactical',
+    hudVisible: true,
+    detection: MILITARY_DETECTION_PRESET,
+  },
 };
 
 /**
@@ -153,4 +216,9 @@ export const STYLE_STATUS_LABELS = {
   anime: 'ANIME',
   noir: 'NOIR',
   snow: 'SNOW',
+  amber: 'AMBER',
+  ghost: 'GHOST',
+  predator: 'IRON',
+  xray: 'XRAY',
+  cinema: 'CINE',
 };

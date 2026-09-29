@@ -106,5 +106,11 @@ export function createState({ services }) {
   /** Whether the MAX_TOTAL_POINTS cap warning has already been logged. */
 
   layerState._limitWarned = false;
+
+  /** 操作员渲染上限 (0–999)：只保留离相机最近的 N 个站点（0 = 不渲染非选中站点）。
+   *  999 视为「不限」——渲染记录本身仍受 MAX_TOTAL_POINTS 全局上限约束。
+   *  由非侵入 UI（gev-layer-limits.js）经 setLayerParams 设置，改后立即重算可见性。 */
+
+  layerState._renderLimit = 25;
   return layerState;
 }

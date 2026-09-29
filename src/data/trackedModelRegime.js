@@ -81,3 +81,20 @@ export function trackedModelZoomActive(cameraHeightM, wasActive = false) {
     (wasActive ? TRACKED_MODEL_EXIT_ALT_M : TRACKED_MODEL_ENTER_ALT_M)
   );
 }
+
+/** GEV cross-fade (owner 2026-09-28: "平面图标↔3D模型切换时突然跳变，要平滑过渡").
+ *  The handoff used to be a binary cut (icon hidden, model shown on one frame).
+ *  This returns the ICON's opacity for a given camera altitude so the two visuals
+ *  CROSS-FADE instead of popping: 1 = pure 2D icon (zoomed out), 0 = pure 3D model
+ *  (zoomed in), linearly ramped across the band [LO, HI]. Independent of the
+ *  hysteretic LOAD latch above (that only decides when to fetch the GLB); the
+ *  fade is a pure function of altitude so it is inherently flap-free. */
+export const TRACKED_MODEL_FADE_HI_M = TRACKED_MODEL_ENTER_ALT_M; // 150_000 — icon fully in at/above
+export const TRACKED_MODEL_FADE_LO_M = 100_000; // icon fully gone at/below → model owns
+export function trackedCrossfadeIconAlpha(cameraHeightM) {
+  if (!Number.isFinite(cameraHeightM)) return 1;
+  const a =
+    (cameraHeightM - TRACKED_MODEL_FADE_LO_M) /
+    (TRACKED_MODEL_FADE_HI_M - TRACKED_MODEL_FADE_LO_M);
+  return a < 0 ? 0 : a > 1 ? 1 : a;
+}

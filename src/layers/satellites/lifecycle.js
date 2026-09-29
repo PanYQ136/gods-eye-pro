@@ -45,6 +45,14 @@ export function createLifecycle({
       layerState._denseError = null;
       layerState._catalogRevision++;
 
+      // Render cap (renderLimit) enforcement state: the point collection below is
+      // brand new, so the last pass's allowed set / ISS gate describe points that
+      // no longer exist. The limit itself is a user preference — sticky, like the
+      // catalog mode.
+      layerState._renderCapAllowed = null;
+      layerState._renderCapLastMs = 0;
+      layerState._renderCapIssAllowed = true;
+
       // Point primitives for satellite dots
       layerState._pointCollection = new Cesium.PointPrimitiveCollection();
       viewer.scene.primitives.add(layerState._pointCollection);
@@ -159,6 +167,9 @@ export function createLifecycle({
       layerState._denseStatus = 'idle';
       layerState._denseError = null;
       layerState._catalogRevision++;
+      layerState._renderCapAllowed = null;
+      layerState._renderCapLastMs = 0;
+      layerState._renderCapIssAllowed = true;
       layerState._rowControlsListener = null;
       layerState._count = 0;
       layerState._lastUpdate = null;

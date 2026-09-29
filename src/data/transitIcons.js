@@ -111,11 +111,21 @@ const _b64 = (s) =>
 /**
  * Fleet raster size. Same reasoning as the aircraft fleet glyphs: Cesium's
  * billboard atlas has no mipmaps, so a texture far larger than its on-screen
- * footprint is GPU-minified into mush. Transit billboards render around 14–20
- * CSS px, so 48 px of source covers the band on a Retina display with very
- * little minification.
+ * footprint is GPU-minified into mush. DPR-aware so a DPR=1 panel rasterizes
+ * near its ~14–20 px device footprint (crisp) while Retina keeps the fuller
+ * source.
  */
-const FLEET_RASTER_PX = 48;
+const FLEET_RASTER_PX = Math.min(
+  Math.max(
+    Math.round(
+      18 *
+        ((typeof window !== 'undefined' && window.devicePixelRatio) || 1) *
+        1.4,
+    ),
+    28,
+  ),
+  128,
+);
 /** The selected vehicle draws bigger and deserves a crisper source. */
 export const SELECTED_ICON_PX = 96;
 

@@ -134,12 +134,12 @@ export class PanelChrome {
       persist: false,
     });
     this._initAutoHoverPanel('control-panel', {
-      openDelayMs: 140,
-      closeDelayMs: 420,
+      openDelayMs: 130,
+      closeDelayMs: 900,
     });
     this._initAutoHoverPanel('location-bar', {
-      openDelayMs: 140,
-      closeDelayMs: 420,
+      openDelayMs: 130,
+      closeDelayMs: 900,
     });
     this._initCommandDockPins();
     this._initCommandDockTrayMetrics();

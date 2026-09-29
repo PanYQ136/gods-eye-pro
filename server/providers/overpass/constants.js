@@ -18,13 +18,17 @@ const OVERPASS_USER_AGENT =
 
 /** Ordered list of Overpass API mirrors; tried sequentially on failure/rate-limit. */
 const OVERPASS_UPSTREAMS = [
+  // Fastest + most reliable from this network (measured via proxy ≈2 s; the
+  // DE/FR community mirrors below routinely refuse or stall this IP). Order:
+  // best latency first, public mirrors kept as later fallbacks.
+  'https://overpass.osm.ch/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+  // Original public mirrors — retained as fallbacks. overpass-api.de / lz4
+  // answer 406 to this client and kumi.systems times out here, but a refused
+  // connection fails in ms so the fast mirrors above still win.
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://lz4.overpass-api.de/api/interpreter',
-  // Community full-planet instance (privateforge nonprofit) — added 2026-07-30
-  // when all three mirrors above refused this IP (likely a dev-traffic rate
-  // ban; refused connections fail in ms, so healthy mirrors above still win).
-  // Verified: planet coverage (Texas query), CORS *, ~5-20 s cold latency.
   'https://overpass.private.coffee/api/interpreter',
 ];
 

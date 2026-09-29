@@ -11,6 +11,8 @@ import {
   POINT_HEIGHT_OFFSET_M,
   MAX_TOTAL_POINTS,
   COLOR_OUTLINE,
+  RENDER_LIMIT_MIN,
+  RENDER_LIMIT_MAX,
 } from './policy.js';
 
 export function createRendering({
@@ -196,6 +198,9 @@ export function createRendering({
     }
 
     layerState._count = layerState._stationRenderMap.size;
+    // Fresh points default to visible; a live operator limit has to claim them
+    // now instead of showing every new station until the limit next changes.
+    if (layerState._renderLimit < RENDER_LIMIT_MAX) applyRenderLimit();
   }
 
   /**
@@ -269,6 +274,63 @@ export function createRendering({
       record.point.color = statusToColor(status, capacity);
     }
   }
+
+  /**
+   * Operator render limit: keep only the NEAREST `_renderLimit` station points
+   * to the camera visible; the selected station is always exempt (the cap
+   * never hides the station the operator is reading about, though its own
+   * point stays hidden while the selection highlight owns the visual).
+   *
+   * Re-decides `point.show` for every rendered station from the cached render
+   * map alone — no fetch, no city re-activation — so a limit change lands on
+   * the very next frame. `RENDER_LIMIT_MAX` (999) means unlimited: every
+   * non-selected point is shown, which is also how a station that the cap was
+   * hiding comes back when the operator raises the limit again.
+   * @returns {number} Stations left visible (for diagnostics).
+   */
+
+  function applyRenderLimit() {
+    if (!layerState._pointCollection) return 0;
+    const raw = Number(layerState._renderLimit);
+    const limit = Number.isFinite(raw)
+      ? Math.max(RENDER_LIMIT_MIN, Math.min(RENDER_LIMIT_MAX, Math.floor(raw)))
+      : RENDER_LIMIT_MAX;
+    layerState._renderLimit = limit;
+    const selectedKey = layerState._selectedKey;
+
+    // Rank by distance to the camera. A viewer without a camera position (an
+    // early boot, a test double) can't rank anything, so the cap degrades to
+    // "unlimited" rather than blanking the layer.
+    let allowed = null;
+    const camera = layerState._viewer?.camera?.positionWC;
+    if (limit < RENDER_LIMIT_MAX && camera) {
+      const ranked = [];
+      for (const record of layerState._stationRenderMap.values()) {
+        const position = record.point?.position;
+        if (!position) continue;
+        ranked.push([
+          Cesium.Cartesian3.distanceSquared(camera, position),
+          record.key,
+        ]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      allowed = new Set();
+      for (let i = 0; i < ranked.length && i < limit; i += 1)
+        allowed.add(ranked[i][1]);
+    }
+
+    let visible = 0;
+    for (const [key, record] of layerState._stationRenderMap) {
+      const point = record.point;
+      if (!point) continue;
+      const show = allowed
+        ? allowed.has(key) || key === selectedKey
+        : key !== selectedKey;
+      if (point.show !== show) point.show = show;
+      if (show) visible += 1;
+    }
+    return visible;
+  }
   return {
     resolveCapacity,
     capacityToPixelSize,
@@ -278,5 +340,6 @@ export function createRendering({
     ensureCityPoints,
     removeCityPoints,
     applyStatusToPoints,
+    applyRenderLimit,
   };
 }

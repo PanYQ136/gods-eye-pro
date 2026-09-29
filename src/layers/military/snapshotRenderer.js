@@ -7,6 +7,8 @@ import {
 } from '../../data/motionModel.js';
 import { aircraftIcon } from '../../data/aircraftIcons.js';
 import { POSITION_HISTORY_LIMIT } from './recordPolicy.js';
+import { approxDistanceKm } from '../flights/recordPolicy.js';
+import { FLEET_ADD_M, FLEET_KEEP_M } from '../flights/policy.js';
 import {
   BILLBOARD_SCALE,
   GROUND_SCALE,
@@ -36,11 +38,57 @@ export function createMilitarySnapshotRenderer({
     // clamp — collected during the loop (low airborne contacts only),
     // batch-resolved once after it. Never a fetch inside the loop.
     const _floorWarmPoints = [];
+    // Viewport-proximate fleet (mirror of flights.js): the BillboardCollection
+    // update visits every member, so only carry contacts near the camera.
+    const viewerCarto =
+      (viewer || flightState._viewer)?.camera?.positionCartographic || null;
+    const viewerLatDeg = viewerCarto
+      ? Cesium.Math.toDegrees(viewerCarto.latitude)
+      : null;
+    const viewerLonDeg = viewerCarto
+      ? Cesium.Math.toDegrees(viewerCarto.longitude)
+      : null;
+
+    // 操作员渲染上限 (0–999)：按到相机子午点的距离排序，只放行最近的 N 架。
+    let capAllowed = null;
+    const capN = flightState._renderLimit;
+    if (
+      Number.isFinite(capN) &&
+      capN < snapshot.records.length &&
+      viewerLatDeg != null &&
+      viewerLonDeg != null
+    ) {
+      const ranked = [];
+      for (const a of snapshot.records) {
+        const d = approxDistanceKm(viewerLatDeg, viewerLonDeg, a.latitude, a.longitude);
+        if (Number.isFinite(d)) ranked.push([d, a.id]);
+      }
+      ranked.sort((a, b) => a[0] - b[0]);
+      capAllowed = new Set();
+      const keep = Math.max(0, Math.floor(capN));
+      for (let i = 0; i < ranked.length && i < keep; i += 1) capAllowed.add(ranked[i][1]);
+      if (flightState._trackedIcao) capAllowed.add(flightState._trackedIcao);
+    }
 
     for (const aircraft of snapshot.records) {
       const icao24 = aircraft.id;
 
-      currentIcaos.add(icao24);
+      // 超出操作员上限：当远处接触一样卸掉（跟踪机永远保留）。
+      if (capAllowed && !capAllowed.has(icao24) && icao24 !== flightState._trackedIcao) {
+        const capBb = flightState._billboards.get(icao24);
+        if (capBb) {
+          flightState._billboardCollection.remove(capBb);
+          flightState._billboards.delete(icao24);
+        }
+        rendering._releaseModel(icao24);
+        records.forget(icao24);
+        flightState._cullPositions.delete(icao24);
+        flightState._positionHistory.delete(icao24);
+        flightState._displayCourse.delete(icao24);
+        flightState._groundSnap.forget(icao24);
+        continue;
+      }
+
       const { prevMeta, meta, groundFlipped, fixEpochMs } = records.receive(
         aircraft,
         {
@@ -51,6 +99,35 @@ export function createMilitarySnapshotRenderer({
             : false,
         },
       );
+      // Far contacts: shed the billboard + cached state and skip the rest of
+      // the reconcile (KEEP > ADD gives hysteresis, no edge flicker). The
+      // tracked contact and a null viewer (no camera yet) always pass.
+      if (viewerLatDeg != null && icao24 !== flightState._trackedIcao) {
+        const carried = flightState._billboards.has(icao24);
+        const limitM = carried ? FLEET_KEEP_M : FLEET_ADD_M;
+        const distM =
+          approxDistanceKm(
+            viewerLatDeg,
+            viewerLonDeg,
+            meta.rawLat,
+            meta.rawLon,
+          ) * 1000;
+        if (Number.isFinite(distM) && distM > limitM) {
+          const farBb = flightState._billboards.get(icao24);
+          if (farBb) {
+            flightState._billboardCollection.remove(farBb);
+            flightState._billboards.delete(icao24);
+          }
+          rendering._releaseModel(icao24);
+          records.forget(icao24);
+          flightState._cullPositions.delete(icao24);
+          flightState._positionHistory.delete(icao24);
+          flightState._displayCourse.delete(icao24);
+          flightState._groundSnap.forget(icao24);
+          continue;
+        }
+      }
+      currentIcaos.add(icao24);
       const position = Cesium.Cartesian3.fromDegrees(
         meta.rawLon,
         meta.rawLat,

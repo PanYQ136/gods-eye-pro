@@ -1,6 +1,14 @@
 import * as Cesium from 'cesium';
 import { gstime } from 'satellite.js';
-import { ISS_NORAD, POSITION_UPDATE_MS, RING_ROTATION_MS } from './policy.js';
+import {
+  ISS_NORAD,
+  POSITION_UPDATE_MS,
+  RING_ROTATION_MS,
+  RENDER_CAP_DENSE_INTERVAL_MS,
+  RENDER_CAP_DENSE_SIZE,
+  RENDER_CAP_INTERVAL_MS,
+  RENDER_LIMIT_UNLIMITED,
+} from './policy.js';
 
 export function createRendering({
   state: layerState,
@@ -167,6 +175,102 @@ export function createRendering({
   }
 
   /**
+   * 操作员渲染上限 (renderLimit, 0–999) — flights/military parity.
+   *
+   * Unlike flights, this catalog is NOT viewport-clipped: every satellite on the
+   * planet is a point in one collection, so "only the nearest N" has to be
+   * computed here. Each pass ranks every point by its squared distance to the
+   * camera and hides the ones outside the nearest N through
+   * `PointPrimitive.show` — the same switch the track path already uses, so the
+   * two writers can never fight: `show === false` means EITHER "tracked" (the
+   * tracked entity draws that dot) OR "outside the cap", and one of them always
+   * re-asserts on the next pass.
+   *
+   * The tracked satellite is exempt in BOTH directions — never hidden by the cap
+   * (it must survive renderLimit 0) and never force-shown (it stays hidden while
+   * its entity owns the visual).
+   *
+   * 999 (RENDER_LIMIT_UNLIMITED) and any limit at or above the point count bypass
+   * the ranking entirely — that is what leaves the default view, and the whole
+   * dense Starlink shell, byte-for-byte unchanged.
+   *
+   * Cost: one squared distance per point + a sort, run on a cadence
+   * (RENDER_CAP_INTERVAL_MS, or the slower dense cadence for 10K+ catalogs).
+   * Steady state writes nothing: a point's flag only changes when it enters or
+   * leaves the nearest set.
+   * @param {{force?: boolean, nowMs?: number}} [options] `force` bypasses the
+   *   cadence — used by setParams so a slider write lands this frame.
+   * @returns {boolean} Whether a pass actually ran.
+   */
+
+  function _applyRenderCap({ force = false, nowMs = Date.now() } = {}) {
+    const points = layerState._points;
+    const camera = layerState._viewer?.camera;
+    if (!points || points.size === 0) return false;
+    // Nothing to rank against while the dots are switched off wholesale (the
+    // same gate _preRenderTick uses for hidden propagation), or in a viewer
+    // stand-in that carries no camera (test seams). The next pass corrects.
+    if (!layerState._params.showPoints || !camera?.positionWC) return false;
+
+    const interval =
+      points.size > RENDER_CAP_DENSE_SIZE
+        ? RENDER_CAP_DENSE_INTERVAL_MS
+        : RENDER_CAP_INTERVAL_MS;
+    if (!force && nowMs - layerState._renderCapLastMs < interval) return false;
+    layerState._renderCapLastMs = nowMs;
+
+    const requested = Number.isFinite(layerState._renderLimit)
+      ? Math.max(0, Math.floor(layerState._renderLimit))
+      : RENDER_LIMIT_UNLIMITED;
+    const tracked = layerState._trackedNorad;
+
+    let allowed = null;
+    if (requested < RENDER_LIMIT_UNLIMITED && requested < points.size) {
+      const ranked = [];
+      for (const [noradId, point] of points) {
+        if (!point?.position) continue;
+        ranked.push([
+          Cesium.Cartesian3.distanceSquared(camera.positionWC, point.position),
+          noradId,
+        ]);
+      }
+      // Ties resolve by catalog order, so the set is stable frame to frame for
+      // a stationary camera (no flicker at the cutoff).
+      ranked.sort((a, b) => a[0] - b[0]);
+      allowed = new Set();
+      for (let i = 0; i < ranked.length && i < requested; i += 1)
+        allowed.add(ranked[i][1]);
+      // Exempt, and NOT charged against the budget — same as flights.
+      if (tracked !== null) allowed.add(tracked);
+    }
+    layerState._renderCapAllowed = allowed;
+
+    for (const [noradId, point] of points) {
+      if (!point || noradId === tracked) continue;
+      const visible = allowed ? allowed.has(noradId) : true;
+      // Write only on an actual change: a steady state costs zero vertex-buffer
+      // updates, which is what keeps this pass free at 4 Hz.
+      if (point.show !== visible) point.show = visible;
+    }
+
+    // The ISS callout is a world-overlay label, not a point primitive: without
+    // this gate it would keep floating over empty sky once the cap hides the dot.
+    const issAllowed = !allowed || allowed.has(ISS_NORAD);
+    if (issAllowed !== layerState._renderCapIssAllowed) {
+      layerState._renderCapIssAllowed = issAllowed;
+      parts.labels._syncIssOverlay();
+    }
+    return true;
+  }
+
+  /** Whether the active render cap keeps this satellite's dot on screen. */
+
+  function _pointAllowedByRenderCap(noradId) {
+    const allowed = layerState._renderCapAllowed;
+    return !allowed || allowed.has(noradId);
+  }
+
+  /**
    * Shared scene.preRender tick (single definition for init + enable):
    * - core fleet propagation at 200ms-tracked / 1s-idle cadence,
    * - dense extras on a per-frame round-robin budget,
@@ -202,6 +306,9 @@ export function createRendering({
         point.position = layerState._trackedFrameCartesian; // primitive setter clones
       }
     }
+
+    // 操作员渲染上限 (renderLimit)：位置刚更新过，按当前相机重排「最近 N 颗」。
+    _applyRenderCap({ nowMs: now });
 
     _updatePointFocus(now);
 
@@ -313,6 +420,8 @@ export function createRendering({
     _updateOrbitPathRotations,
     _hideOrbitPath,
     _propagateAll,
+    _applyRenderCap,
+    _pointAllowedByRenderCap,
     _preRenderTick,
     _updatePointFocus,
     applySatellitePointFocusDeemphasis,

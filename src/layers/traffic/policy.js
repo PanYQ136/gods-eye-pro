@@ -55,6 +55,23 @@ export const OVERLAP_THRESHOLD = 0.6;
 
 export const MAX_DOTS = 6000;
 
+/**
+ * @const {number} 操作员渲染上限 (0–999)：只渲染离相机最近的 N 个车流点；
+ * 999 视为「不限」（默认值，行为与改造前完全一致）。语义与 flights / military
+ * 的 renderLimit 一致，由 gev-layer-limits.js 经 `dataManager.setLayerParams
+ * ('traffic', { renderLimit: n }, { origin:'user' })` 下发。
+ */
+
+export const RENDER_LIMIT_UNLIMITED = 999;
+
+/**
+ * @const {number} Milliseconds — 有上限时的重算间隔。车流点一直在动、相机也
+ * 会移动，「最近的 N 个」会漂移，所以按秒级重算而非只在设置时算一次。
+ * 999(不限) 路径完全不走这里：零额外开销。
+ */
+
+export const RENDER_LIMIT_REFRESH_MS = 1000;
+
 /** @const {number} Polylines longer than this are simplified by sub-sampling */
 
 export const MAX_WAYPOINTS_PER_ROAD = 80;

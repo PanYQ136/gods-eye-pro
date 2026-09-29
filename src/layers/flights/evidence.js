@@ -86,8 +86,8 @@ export function createEvidence({
       const bb = flightState._billboardCollection.add({
         position,
         image: aircraftIcon(parts.rendering._iconKind(id, klass)),
-        width: 20,
-        height: 20,
+        width: 12,
+        height: 12,
         scale: parts.rendering._fleetBillboardScale(id, klass),
         rotation: 0,
         alignedAxis: Cesium.Cartesian3.ZERO,

@@ -231,6 +231,14 @@ export function createQueries({
       ) {
         parts.tracking._cancelPendingTrackingRestore();
       }
+      if (Number.isFinite(params.renderLimit)) {
+        const n = Math.max(0, Math.min(999, Math.floor(params.renderLimit)));
+        if (n !== flightState._renderLimit) {
+          flightState._renderLimit = n;
+          parts.ingestion?.methods?.reapply?.(flightState._viewer);
+          flightState._viewer?.scene?.requestRender?.();
+        }
+      }
       if (
         typeof params.models3d === 'boolean' &&
         params.models3d !== flightState._models3dEnabled
@@ -299,6 +307,7 @@ export function createQueries({
         models3d: flightState._models3dEnabled,
         models3dMode: flightState._models3dMode,
         irBoost: flightState._irBoost,
+        renderLimit: flightState._renderLimit,
         selectedMilitaryTrackingId: flightState._trackedIcao,
       };
     },
