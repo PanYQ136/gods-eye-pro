@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🌐 God's Eye View
+# 🌐 God's Eye View / 上帝之眼 Pro
+
+> **上帝之眼 Pro** — 本仓库是 [bilawalsidhu/gods-eye-view](https://github.com/bilawalsidhu/gods-eye-view) 的中文增强版：中文界面与词典、新增显示风格（amber / cinema / ghost / predator / xray）、amvlab 客机模型，以及面向国内网络的可达性代理层与本地启动脚本。
 
 [![CI](https://github.com/bilawalsidhu/gods-eye-view/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bilawalsidhu/gods-eye-view/actions/workflows/ci.yml) [![Reached #1 on GitHub Trending](https://img.shields.io/badge/%231_GitHub_Trending-thank_you!-F0A63C?style=flat-square&logo=github)](https://x.com/bilawalsidhu/status/2093798887815348521)
 
