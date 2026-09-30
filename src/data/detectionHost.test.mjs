@@ -700,7 +700,9 @@ test('detection cannot resurrect a private canvas, listener, matrix, resize, cle
   // The three military styles used to carry three copies of these numbers.
   // They now share ONE frozen object, which Cockpit's force-on reuses too, so
   // the pin moved from "three identical literals" to "one preset, referenced
-  // three times" — same guarantee, and the copies can no longer drift.
+  // once per detection-owning style" — same guarantee, and the copies can no
+  // longer drift. The five styles added 2026-09-28 (amber, ghost, predator,
+  // xray, cinema) auto-enable the same preset, so the count is eight.
   assert.match(
     uiSource,
     /const MILITARY_DETECTION_PRESET = Object\.freeze\(\{\s*mode: 'dense',\s*densityPct: 75,?\s*\}\);/,
@@ -708,8 +710,8 @@ test('detection cannot resurrect a private canvas, listener, matrix, resize, cle
   );
   assert.equal(
     uiSource.match(/detection: MILITARY_DETECTION_PRESET,/g)?.length,
-    3,
-    'CRT, NVG, and FLIR retain their Dense auto-enable defaults',
+    8,
+    'CRT, NVG, FLIR and the five newer looks retain their Dense auto-enable defaults',
   );
   assert.match(uiSource, /preset\.detection && !this\._detectionUserOverridden/);
 });

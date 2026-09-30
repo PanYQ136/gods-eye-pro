@@ -1370,8 +1370,12 @@ test('vessel host publication preserves the shipped grid winner and separation s
       ['vessel:200', 'vessel:300'],
       'one higher-priority winner survives the shared cell and the separated card remains',
     );
-    assert.equal(publications[0].options.cohortLimit, 112);
-    assert.equal(publications[0].options.collisionCapacity, 112);
+    // The shipped 118px grid yields 112 ambient cells at 1600x900, but the
+    // local operator render-limit default (25 vessels — see
+    // src/layers/vessels/state.js) caps the ambient cohort the source publishes;
+    // both fields carry the capped value, and they must stay equal.
+    assert.equal(publications[0].options.cohortLimit, 25);
+    assert.equal(publications[0].options.collisionCapacity, 25);
   } finally {
     Cesium.SceneTransforms.worldToWindowCoordinates = originalProjection;
     _setVesselStateForTest({ enabled: false });
@@ -1408,8 +1412,8 @@ test('vessel real layer lifecycle publishes protected selection and leaves no st
     const publication = calls.find(({ op }) => op === 'set');
     assert.ok(publication, 'production selector published to the host');
     assert.equal(publication.sourceId, 'ais-live-vessels');
-    assert.equal(publication.options.cohortLimit, 112);
-    assert.equal(publication.options.collisionCapacity, 112);
+    assert.equal(publication.options.cohortLimit, 25);
+    assert.equal(publication.options.collisionCapacity, 25);
     assert.equal(publication.entries.length, 1);
     assert.equal(publication.entries[0].variant, 'selected');
     assert.equal(publication.entries[0].protected, true);

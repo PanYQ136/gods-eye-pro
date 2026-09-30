@@ -98,8 +98,9 @@ export function createRendering({
   }
 
   function _normalBillboardScaleByDistance() {
-    // Preserve the established close-range 3× scale. Any smaller owner-visible
-    // default belongs in a separate evidence-backed proposal.
+    // Owner-tuned close-range scale for this layer (1.45 at 1 km → 0.32 at
+    // 8 000 km); military keeps the older 3.0 / 0.5 pair. Both are pinned
+    // per layer in modelScale.test.mjs.
     return new Cesium.NearFarScalar(1000, 1.45, 8000000, 0.32);
   }
 

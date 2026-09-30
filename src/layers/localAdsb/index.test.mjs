@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as Cesium from 'cesium';
 
 import { CLASS_SCALE_2D } from '../../data/aircraftClass.js';
+import { MODEL_REAL_COLOR_BLEND_AMOUNT } from '../flights/policy.js';
 import { layerFeedState } from '../../data/feedState.js';
 import { aircraftIcon } from '../../data/aircraftIcons.js';
 import {
@@ -494,7 +495,7 @@ test('adsbdb type, operator and route reach the card for the selected aircraft o
   assert.equal(queries.length, 2, 'each key is asked for once');
 });
 
-test('the DISPLAY 3D toggle gives local aircraft magenta class models', async (t) => {
+test('the DISPLAY 3D toggle gives local aircraft their real class models', async (t) => {
   const receiver = fakeReceiver({ mode: 'adsb', connected: true });
   const clock = { now: 100_000 };
   const loads = [];
@@ -543,7 +544,10 @@ test('the DISPLAY 3D toggle gives local aircraft magenta class models', async (t
     ),
   );
   assert.equal(model.colorBlendMode, Cesium.ColorBlendMode.MIX);
-  assert.equal(model.colorBlendAmount, 0.94);
+  // The class model is a REAL per-class GLB (bell206.glb) with its own
+  // materials, so the tint is set to zero: the magenta stays assigned for the
+  // shared fallback airplane.glb, but it must not wash out a real airframe.
+  assert.equal(model.colorBlendAmount, MODEL_REAL_COLOR_BLEND_AMOUNT);
   assert.equal(model.show, true);
   const heli = sources[0].entities.getById('local-adsb:a0b702');
   assert.equal(

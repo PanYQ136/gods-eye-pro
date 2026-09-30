@@ -9,13 +9,18 @@
  * from the standard HTTP(S)_PROXY env with NO extra dependency: an HTTP
  * CONNECT tunnel wrapped in TLS.
  *
- * Returns null when no proxy is configured, so callers pass no agent and the
- * direct path is byte-for-byte unchanged. To remove: delete this file and the
- * two-line import/usage in vessels/ais-live.js.
+ * Returns null when no proxy is configured — or when the target must not be
+ * tunneled at all (loopback hosts, NO_PROXY matches, non-TLS `ws://` targets,
+ * which the TLS-wrapping tunnel below cannot carry) — so callers pass no agent
+ * and the direct path is byte-for-byte unchanged. To remove: delete this file
+ * and the two-line import/usage in vessels/ais-live.js.
  */
 import http from 'node:http';
 import https from 'node:https';
 import tls from 'node:tls';
+
+/** Never tunnel the dev server's own (or a test fixture's) loopback traffic. */
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '0.0.0.0']);
 
 /** @type {{url: string, agent: https.Agent}|null} */
 let _cached = null;
@@ -55,8 +60,56 @@ class HttpsProxyConnectAgent extends https.Agent {
   }
 }
 
-/** @returns {https.Agent|null} a proxy agent, or null when no proxy is set. */
-export function wsProxyAgent() {
+/** Strip a leading dot and a trailing `:port` from one NO_PROXY entry. */
+function noProxyEntryHost(entry) {
+  if (entry.startsWith('[')) return entry.replace(/^\[([^\]]*)\].*$/, '$1');
+  const bare = entry.replace(/^\.+/, '');
+  // '::1' (IPv6, no brackets) keeps every colon; only a single colon is a port.
+  return bare.split(':').length === 2 ? bare.split(':')[0] : bare;
+}
+
+/** NO_PROXY / no_proxy match: '*', an exact host, a '.suffix' or 'suffix' domain. */
+function noProxyExcludes(host) {
+  const raw = String(process.env.NO_PROXY || process.env.no_proxy || '');
+  for (const entry of raw.split(',')) {
+    const cleaned = entry.trim().toLowerCase();
+    if (!cleaned) continue;
+    if (cleaned === '*') return true;
+    const bare = noProxyEntryHost(cleaned);
+    if (!bare) continue;
+    if (host === bare || host.endsWith(`.${bare}`)) return true;
+  }
+  return false;
+}
+
+/**
+ * Whether one websocket target may be tunneled through the proxy. The CONNECT
+ * tunnel is TLS-wrapped, so only `wss:`/`https:` targets can use it; loopback
+ * and NO_PROXY hosts must always dial directly (server/standalone/local-proxy.mjs
+ * keeps localhost out of the proxy for exactly this reason).
+ */
+function targetNeedsProxy(targetUrl) {
+  // Unknown/undeclared target: keep the historical behaviour (proxy it).
+  if (!targetUrl) return true;
+  let target;
+  try {
+    target = new URL(String(targetUrl));
+  } catch {
+    return true;
+  }
+  if (target.protocol !== 'wss:' && target.protocol !== 'https:') return false;
+  const host = target.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (!host) return true;
+  if (LOOPBACK_HOSTS.has(host) || host.endsWith('.localhost')) return false;
+  return !noProxyExcludes(host);
+}
+
+/**
+ * @param {string} [targetUrl] Upstream websocket URL the agent will be used for.
+ * @returns {https.Agent|null} a proxy agent, or null when the target should be
+ *   dialed directly (no proxy configured, loopback/NO_PROXY host, or `ws://`).
+ */
+export function wsProxyAgent(targetUrl) {
   const raw = String(
     process.env.HTTPS_PROXY ||
       process.env.https_proxy ||
@@ -65,6 +118,7 @@ export function wsProxyAgent() {
       '',
   ).trim();
   if (!raw) return null;
+  if (!targetNeedsProxy(targetUrl)) return null;
   if (_cached && _cached.url === raw) return _cached.agent;
   let proxy;
   try {

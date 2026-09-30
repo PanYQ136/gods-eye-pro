@@ -382,9 +382,12 @@ test('the Display selector, voice schema and final stylesheet expose Cyber', () 
     /const animatingCount = countAnimatingRenderEntries\(renderEntries\);/,
   );
   assert.doesNotMatch(detection, /sonarActive \? 1 : 0/);
+  // GEV cross-fade (owner 2026-09-28): flights hands the per-model treatment its
+  // own `modelAlpha` (1 − iconAlpha) so the airframe fades in as its icon fades
+  // out; military still passes the billboard treatment's alpha straight through.
   assert.match(
     civilRendering,
-    /alpha: flightState\._irBoost \? 1 : treatment\.alpha/,
+    /alpha: flightState\._irBoost \? 1 : modelAlpha/,
   );
   assert.match(
     militaryRendering,

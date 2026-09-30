@@ -12,6 +12,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { Readable } from 'node:stream';
 import createViteConfig, { fetchOverpassPayload, overpassPayloadIsData, readOverpassDisk } from '../vite.config.js';
+import { OVERPASS_UPSTREAMS } from '../server/providers/overpass/constants.js';
 
 const ENDPOINTS = ['https://a.example/api', 'https://b.example/api', 'https://c.example/api'];
 
@@ -247,10 +248,13 @@ test('production reader rotates past oversized, runtime-error and rate-limited b
 });
 
 function proxyHandler() {
-  const plugin = createViteConfig({ mode: 'test' }).plugins.find(p => p.name === 'overpass-proxy');
-  const routes = new Map();
-  plugin.configureServer({ middlewares: { use: (route, handler) => routes.set(route, handler) } });
-  return routes.get('/api/overpass');
+  // The root config factory is async since the local-proxy bootstrap landed.
+  return createViteConfig({ mode: 'test' }).then((config) => {
+    const plugin = config.plugins.find((p) => p.name === 'overpass-proxy');
+    const routes = new Map();
+    plugin.configureServer({ middlewares: { use: (route, handler) => routes.set(route, handler) } });
+    return routes.get('/api/overpass');
+  });
 }
 
 function invoke(handler, body) {
@@ -266,7 +270,7 @@ function invoke(handler, body) {
 }
 
 test('coalesced outage callers both receive last-good data, never a cached refusal', async (t) => {
-  const handler = proxyHandler();
+  const handler = await proxyHandler();
   for (const status of [406, 503, 429]) {
     const query = `[out:json][timeout:12];node(around:10,30.27,-97.74)["name"="${randomUUID()}"];out;`;
     const body = `data=${encodeURIComponent(query)}`;
@@ -297,7 +301,11 @@ test('coalesced outage callers both receive last-good data, never a cached refus
         assert.equal(response.body, DATA.body);
         assert.equal(response.headers['X-Overpass-Cache'], 'STALE');
       }
-      assert.equal(fetches, 4, 'one shared, bounded mirror sequence');
+      // One coalesced refresh fans out over exactly ONE bounded mirror
+      // sequence: every shipped mirror tried once, with no second pass and no
+      // per-caller duplicate. Derived from the shipped list so adding a mirror
+      // cannot silently double (or half) the expected fan-out.
+      assert.equal(fetches, OVERPASS_UPSTREAMS.length, 'one shared, bounded mirror sequence');
       assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), stale);
     } finally {
       release.resolve();

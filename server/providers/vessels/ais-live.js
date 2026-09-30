@@ -256,8 +256,9 @@ function aisAdapter() {
       const WebSocketCtor = aisWebSocketImpl();
       if (!WebSocketCtor) throw new Error('ws transport unavailable');
       // `ws` ignores NODE_USE_ENV_PROXY, so hand it the local proxy agent (built
-      // from HTTP(S)_PROXY; null when none is set → direct connect unchanged).
-      const agent = wsProxyAgent();
+      // from HTTP(S)_PROXY; null when none is set, or when this URL is a
+      // loopback/NO_PROXY or plaintext `ws://` target that must dial direct).
+      const agent = wsProxyAgent(url);
       return new WebSocketCtor(url, agent ? { agent } : undefined);
     },
     resolveUrl: () => aisWatchdogPolicy().url,

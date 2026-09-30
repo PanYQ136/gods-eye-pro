@@ -253,8 +253,9 @@ const _b64 = (s) =>
  *  smooth. 64 covers the 40–58 px fleet band with ≤1.6× minification. */
 const FLEET_RASTER_PX = 64;
 /** Tracked raster: the tracked billboard is the one SUSTAINED large 2D glyph
- *  (close-zoom fleet flybys hand off to 3D models). Keep the 192 px texture so
- *  it stays crisp at its biggest on-screen sizes. */
+ *  (close-zoom fleet flybys hand off to 3D models). This local build dropped it
+ *  from 192 px to the fleet's 64 px — a deliberate cut of the cached SVG/texture
+ *  bytes per kind, NOT a stale value. */
 const TRACKED_RASTER_PX = 64;
 
 /** Data URI for a class silhouette (lazily built, cached per kind+size).

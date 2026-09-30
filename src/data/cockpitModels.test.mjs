@@ -95,8 +95,19 @@ for (const layer of LAYERS) {
       'far dots are reset to a rotation-free presentation');
     assert.match(source, /\(\s*!(?:flightState\.)?_cockpitContactMode\s*\|\|\s*isCockpitNear,?\s*\)\s*&&\s*\(\s*doRotations\s*\|\|\s*revealed,?\s*\)/,
       'near 2D silhouettes continue to receive projected course');
-    assert.match(source, /if\s*\(\s*bb\.show,?\s*\)\s*bb\.show\s*=\s*false;\s*\/\/\s*hand\s*off\s*ONLY\s*once\s*the\s*model\s*renders/,
+    // The 2D icon must be what the operator sees until the model actually
+    // renders. The civilian layer now CROSS-FADES that handoff (owner
+    // 2026-09-28: "平面图标↔3D模型切换时突然跳变"), so its cut is an opacity
+    // threshold rather than a binary hide; the military layer still hard-cuts.
+    // Either way the icon stays visible while the model is still loading — that
+    // is the invariant, and the !model.ready branch below is where it lives.
+    const handoff = layer.name === 'flights'
+      ? /bb\.show\s*=\s*iconA\s*>\s*0\.02;/
+      : /if\s*\(\s*bb\.show,?\s*\)\s*bb\.show\s*=\s*false;\s*\/\/\s*hand\s*off\s*ONLY\s+once\s+the\s+model\s+renders/;
+    assert.match(source, handoff,
       'the gap-proof billboard-to-model handoff remains intact');
+    assert.match(source, /if\s*\(\s*!model\.ready\s*\)\s*\{[\s\S]*?bb\.show\s*=\s*true;/,
+      'a still-loading model never takes the icon away');
   });
 
   test(`${layer.name}: Cockpit exit clears near state before restoring map presentation`, () => {

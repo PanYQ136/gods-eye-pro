@@ -66,8 +66,16 @@ export const MODEL_TRAIL_ANCHOR_NATIVE = Object.freeze({
   '/models/c172.glb': Object.freeze([3.6816, -0.2425, 0]),
   '/models/citation2.glb': Object.freeze([6.8804, -0.6136, 0]),
   '/models/mq9.glb': Object.freeze([5.1951, -1.1516, 0]),
-  '/models/b789.glb': Object.freeze([30.1007, -3.4814, 0]),
   '/models/atr72.glb': Object.freeze([12.9785, -1.2935, 0]),
+  // amvlab per-class airframes (public/models/README.md). Added with the class
+  // swap that made airliner/widebody/quadjet render these instead of the shared
+  // b789/airplane GLBs — without them the tracked trail fell back to the visual
+  // centre and terminated mid-fuselage. Re-derived from the POSITION buffers by
+  // modelScale.test.mjs, like every other row.
+  '/models/a320.glb': Object.freeze([17.5422, -1.62, 0]),
+  '/models/a350.glb': Object.freeze([31.9242, -2.3208, 0]),
+  '/models/a380.glb': Object.freeze([34.3803, -4.803, 0]),
+  '/models/b737.glb': Object.freeze([18.6229, -2.7003, 0]),
 });
 
 /** @constant Cesium's OWN axis correction for a glTF loaded with the

@@ -127,7 +127,9 @@ test('the Contacts preset is the very object the military styles apply', () => {
   assert.equal(MILITARY_PRESET.mode, 'DENSE');
   assert.equal(MILITARY_PRESET.densityPct, 75);
   const styles = uiSource.match(/detection: MILITARY_DETECTION_PRESET,/g) || [];
-  assert.equal(styles.length, 3, 'retro, surveillance and thermal all share the one preset object');
+  // retro, surveillance, thermal, and the five looks added 2026-09-28 (amber,
+  // ghost, predator, xray, cinema) all share the one preset object.
+  assert.equal(styles.length, 8, 'every detection-owning military look shares the one preset object');
   assert.doesNotMatch(
     uiSource,
     /detection: \{ mode: 'dense'/,

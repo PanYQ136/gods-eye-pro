@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CLASS_SCALE_3D, CLASS_MODEL_URL, CLASS_MODEL_REAL } from './aircraftClass.js';
+import { CLASS_SCALE_3D, CLASS_MODEL_URL, CLASS_MODEL_REAL, TYPE_MODEL_REAL } from './aircraftClass.js';
 import {
   MODEL_TRAIL_ANCHOR_NATIVE,
   MODEL_VISUAL_CENTER_NATIVE,
@@ -530,11 +530,18 @@ test('shared-model visual-centre metadata matches the shipped GLBs', () => {
 // real geometry on airplane.glb, 6.14 m on jet.glb — so the trail ended in mid
 // air beside the model. The anchor is now a genuine hull point, and these pins
 // re-derive it from the POSITION BUFFERS rather than restating the table.
+// Every approved aircraft GLB — the shared silhouettes, the per-class airframes
+// and the per-TYPE airframes (a B738 tracked at close range draws b737.glb, so
+// it needs a trail anchor too) — in ONE list, so the coverage pin below and the
+// stationary-head rig cannot drift apart.
+const APPROVED_AIRCRAFT_URLS = new Set([
+  ...Object.keys(MODEL_VISUAL_CENTER_NATIVE),
+  ...Object.values(CLASS_MODEL_REAL).map((spec) => spec.url),
+  ...Object.values(TYPE_MODEL_REAL).map((spec) => spec.url),
+]);
+
 test('every approved aircraft model has a trail anchor on its real aft-belly hull', () => {
-  const urls = new Set([
-    ...Object.keys(MODEL_VISUAL_CENTER_NATIVE),
-    ...Object.values(CLASS_MODEL_REAL).map((spec) => spec.url),
-  ]);
+  const urls = APPROVED_AIRCRAFT_URLS;
   assert.deepEqual(
     new Set(Object.keys(MODEL_TRAIL_ANCHOR_NATIVE)),
     urls,
@@ -624,10 +631,7 @@ test('every approved aircraft model has a trail anchor on its real aft-belly hul
 // swept out along +x. That is exactly the geometry the guard reasons about —
 // two distances from one centre — so the arithmetic under test is the shipped
 // arithmetic, with no transform chain in the way (that is the pin below).
-const TRAIL_RIG_URLS = new Set([
-  ...Object.keys(MODEL_VISUAL_CENTER_NATIVE),
-  ...Object.values(CLASS_MODEL_REAL).map((spec) => spec.url),
-]);
+const TRAIL_RIG_URLS = APPROVED_AIRCRAFT_URLS;
 const trailRigAt = (d) => ({ x: d, y: 0, z: 0 });
 const trailRigCentre = trailRigAt(0);
 /** The rig's world anchor: the model's own measured attachment point, laid out
@@ -917,11 +921,22 @@ test('real per-class models remain origin-centred for visual anchoring', () => {
   }
 });
 
-test('civilian and military globe-view aircraft retain the established 3.0 near scale and 0.5 floor', () => {
+// The close-range / orbital scale pair per layer. The civilian layer's owner
+// tuning (2026-09-28) pulled the near scale down to 1.45 so a fleet contact no
+// longer reads as a billboard a third bigger than its 3D model at the handoff
+// band, and lowered the orbital floor to 0.32 with it; the military layer keeps
+// the original 3.0 / 0.5 pair. Both stay pinned, per layer, because a silent
+// drift here is exactly what makes the 2D→3D swap look like a pop.
+const NORMAL_BILLBOARD_SCALE_BY_DISTANCE = {
+  flights: [1000, 1.45, 8000000, 0.32],
+  military: [1000, 3, 8000000, 0.5],
+};
+
+test('civilian and military globe-view aircraft keep the pinned near scale and orbital floor', () => {
   for (const layer of LAYERS) {
     assert.deepEqual(
       normalBillboardScaleByDistance(layer.source),
-      [1000, 3, 8000000, 0.5],
+      NORMAL_BILLBOARD_SCALE_BY_DISTANCE[layer.name],
       `${layer.name}: owner-established close sizing and the orbital floor must remain readable`,
     );
   }

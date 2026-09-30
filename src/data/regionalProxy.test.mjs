@@ -43,8 +43,10 @@ test('adjacent proxy validators also require every coordinate explicitly', () =>
   assert.equal(adsbLolFallbackAnchor({ url: '?lon=12.5' }), null);
 });
 
-test('new data proxies install the same routes in dev and preview servers', () => {
-  const config = createViteConfig({ mode: 'test' });
+test('new data proxies install the same routes in dev and preview servers', async () => {
+  // The root config factory is async since the local-proxy bootstrap was added
+  // (server/standalone/vite.config.js awaits bootstrapLocalProxy()).
+  const config = await createViteConfig({ mode: 'test' });
   const byName = new Map(config.plugins.map((plugin) => [plugin.name, plugin]));
   for (const name of [
     'rocket-launches-proxy',

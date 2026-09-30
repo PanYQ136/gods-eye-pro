@@ -44,6 +44,7 @@ import militaryFlightsLayer, {
   _ensureFleetModelForTest as militaryEnsureFleetModel,
 } from './militaryFlights.js';
 import { clearTr3bRegistry, setTr3b } from './tr3bRegistry.js';
+import { CLASS_MODEL_REAL } from './aircraftClass.js';
 import { reportMeshFloorCell, _clearMeshFloorCellsForTest } from './groundFloor.js';
 
 // Sample altitudes are expressed RELATIVE to the band rather than as absolute
@@ -201,7 +202,13 @@ const LAYERS = [
     driveFleetModel: flightsDriveFleetModel,
     ensureFleetModel: flightsEnsureFleetModel,
     trackedBillboardColor: flightsTrackedBillboardColor,
-    bellyM: 6.719,
+    // The civil layer now places a REAL per-class GLB for this contact, so the
+    // belly offset it lifts by is that asset's own measured value (a320.glb,
+    // the `airliner` row), not the shared airplane.glb 6.719 m the layer's
+    // MODEL_BELLY_OFFSET_NATIVE constant used before per-class assets. Read from
+    // the same table the layer reads, so the next asset swap cannot leave this
+    // rig asserting a number no code path produces.
+    bellyM: CLASS_MODEL_REAL.airliner.bellyM,
     seed({ viewer, tracked = true, icao24 = ICAO, modelCollection = null, onGround = false, models = [] }) {
       const billboard = contactBillboard();
       _setTrackedFlightRefreshStateForTest({

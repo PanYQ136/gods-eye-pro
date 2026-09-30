@@ -113,9 +113,12 @@ const _b64 = (s) =>
  * billboard atlas has no mipmaps, so a texture far larger than its on-screen
  * footprint is GPU-minified into mush. DPR-aware so a DPR=1 panel rasterizes
  * near its ~14–20 px device footprint (crisp) while Retina keeps the fuller
- * source.
+ * source. EXPORTED (2026-09-30) so callers and tests ask for the fleet variant
+ * by name: `transitIcon(kind, FLEET_RASTER_PX)` takes the fleet branch, any
+ * larger value the selected one, because a literal px no longer means "fleet"
+ * now that the size depends on the device pixel ratio.
  */
-const FLEET_RASTER_PX = Math.min(
+export const FLEET_RASTER_PX = Math.min(
   Math.max(
     Math.round(
       18 *

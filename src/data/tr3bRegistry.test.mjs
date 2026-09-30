@@ -104,8 +104,12 @@ test('tr3b sprites are real distinct glyphs, not the airliner fallback', () => {
   assert.notEqual(cold, airliner, 'tr3b is a registered kind, not the unknown-kind fallback');
   assert.notEqual(hot, airliner);
   assert.notEqual(cold, hot, 'the thermal variant is a separate sprite');
-  // Both rasters exist so the tracked billboard can use the crisp 192 px source.
-  assert.notEqual(aircraftIcon('tr3b', TRACKED_ICON_PX), cold);
+  // The tracked billboard asks for TRACKED_ICON_PX, which after the 2026-09-30
+  // glyph-raster downsize IS the fleet raster (64 px on both), so the tracked
+  // glyph is the very same cached image — and still the real tr3b glyph, not
+  // the airliner fallback. Pinned so a future divergence has to be deliberate.
+  assert.equal(TRACKED_ICON_PX, 64, 'the tracked raster is the 64 px fleet size');
+  assert.equal(aircraftIcon('tr3b', TRACKED_ICON_PX), cold);
 
   const coldSvg = decodeIcon(cold);
   const hotSvg = decodeIcon(hot);

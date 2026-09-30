@@ -7,7 +7,7 @@ import path from 'node:path';
 import { loadApiKey } from '../tools/streetview-headings.mjs';
 
 /** Run fn with the two Google key env vars set to the given values, then restore. */
-function withKeys({ server, browser }, fn) {
+async function withKeys({ server, browser }, fn) {
   const previous = {
     GOOGLE_MAPS_SERVER_API_KEY: process.env.GOOGLE_MAPS_SERVER_API_KEY,
     GOOGLE_MAPS_API_KEY: process.env.GOOGLE_MAPS_API_KEY,
@@ -19,31 +19,33 @@ function withKeys({ server, browser }, fn) {
   apply('GOOGLE_MAPS_SERVER_API_KEY', server);
   apply('GOOGLE_MAPS_API_KEY', browser);
   try {
-    return fn();
+    // Awaited so async callbacks (the vite config factory) keep the keys set
+    // for their whole run before the restore below.
+    return await fn();
   } finally {
     for (const [name, value] of Object.entries(previous)) apply(name, value);
   }
 }
 
-test('server-side Google calls prefer the server-only key', () => {
-  withKeys({ server: 'server-key', browser: 'browser-key' }, () => {
+test('server-side Google calls prefer the server-only key', async () => {
+  await withKeys({ server: 'server-key', browser: 'browser-key' }, () => {
     assert.equal(googleServerApiKey(), 'server-key');
   });
 });
 
-test('unsplit setups still work: falls back to the browser key', () => {
+test('unsplit setups still work: falls back to the browser key', async () => {
   // The whole point of #33 being opt-in — one shared GOOGLE_MAPS_API_KEY must
   // keep serving Places/Street View exactly as before.
-  withKeys({ server: undefined, browser: 'browser-key' }, () => {
+  await withKeys({ server: undefined, browser: 'browser-key' }, () => {
     assert.equal(googleServerApiKey(), 'browser-key');
   });
-  withKeys({ server: '', browser: 'browser-key' }, () => {
+  await withKeys({ server: '', browser: 'browser-key' }, () => {
     assert.equal(googleServerApiKey(), 'browser-key');
   });
 });
 
-test('keyless stays keyless', () => {
-  withKeys({ server: undefined, browser: undefined }, () => {
+test('keyless stays keyless', async () => {
+  await withKeys({ server: undefined, browser: undefined }, () => {
     assert.ok(!googleServerApiKey());
   });
 });
@@ -114,9 +116,10 @@ test('both Places routes select the intended key and keep it out of responses', 
   }
 });
 
-test('browser defines contain the browser key and exclude the server key', () => {
-  withKeys({ server: 'server-secret', browser: 'browser-public' }, () => {
-    const defines = config({ mode: 'test' }).define;
+test('browser defines contain the browser key and exclude the server key', async () => {
+  await withKeys({ server: 'server-secret', browser: 'browser-public' }, async () => {
+    // Async since the root config factory now awaits its local-proxy bootstrap.
+    const defines = (await config({ mode: 'test' })).define;
     assert.equal(defines['import.meta.env.GOOGLE_MAPS_API_KEY'], '"browser-public"');
     assert.ok(!JSON.stringify(defines).includes('server-secret'));
     assert.ok(!Object.keys(defines).some((key) => key.includes('SERVER_API_KEY')));

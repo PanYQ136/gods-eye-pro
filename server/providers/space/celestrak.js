@@ -86,10 +86,14 @@ export function celestrakProxy() {
         return { at: Date.now(), body };
       } catch (err) {
         lastError = err;
+        // SECURITY: never echo upstream detail (response bodies, URLs, tokens)
+        // into the log — a failing upstream can return an HTML page or a
+        // credential-bearing URL, and this line is user-visible. Only the host
+        // plus a coarse reason class leaves this proxy.
+        const raw = String(err?.message ?? '');
+        const reason = /^HTTP \d{3}$/.test(raw) ? raw : 'request failed';
         console.warn(
-          `[celestrak-proxy] upstream failed (${url.split('/')[2]}): ${
-            err?.message || err
-          }`,
+          `[celestrak-proxy] upstream failed (${url.split('/')[2]}): ${reason}`,
         );
       }
     }
