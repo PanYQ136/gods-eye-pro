@@ -84,8 +84,16 @@
   function moduleOf(id) {
     try {
       const dm = dataManager();
-      return dm && dm.layers && dm.layers.get && dm.layers.get(id) && dm.layers.get(id).module;
-    } catch { return null; }
+      return (
+        dm &&
+        dm.layers &&
+        dm.layers.get &&
+        dm.layers.get(id) &&
+        dm.layers.get(id).module
+      );
+    } catch {
+      return null;
+    }
   }
   /** 仅当图层模块的 getParams() 真暴露有限 renderLimit 时才认为它支持本控件。 */
   function supportsLimit(id) {
@@ -93,29 +101,43 @@
       const m = moduleOf(id);
       const p = m && m.getParams && m.getParams();
       return !!(p && Number.isFinite(p.renderLimit));
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }
   function currentLimit(id) {
     try {
       const m = moduleOf(id);
       const p = m && m.getParams && m.getParams();
       return p && Number.isFinite(p.renderLimit) ? p.renderLimit : MAX;
-    } catch { return MAX; }
+    } catch {
+      return MAX;
+    }
   }
   function setLimit(id, n) {
     try {
       const dm = dataManager();
-      dm && dm.setLayerParams && dm.setLayerParams(id, { renderLimit: n }, { origin: 'user' });
-    } catch { /* ignore */ }
+      dm &&
+        dm.setLayerParams &&
+        dm.setLayerParams(id, { renderLimit: n }, { origin: 'user' });
+    } catch {
+      /* ignore */
+    }
   }
   function storedLimit(id) {
     try {
       const v = localStorage.getItem(STORE_KEY + id);
       return v == null ? null : clamp(v);
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
   function saveLimit(id, n) {
-    try { localStorage.setItem(STORE_KEY + id, String(n)); } catch { /* ignore */ }
+    try {
+      localStorage.setItem(STORE_KEY + id, String(n));
+    } catch {
+      /* ignore */
+    }
   }
 
   function buildControl(cfg, initial) {
@@ -154,7 +176,9 @@
       if (num.value !== String(n)) num.value = String(n);
       setLimit(cfg.id, n);
       saveLimit(cfg.id, n);
-      if (fromInput === 'num') { /* keep focus */ }
+      if (fromInput === 'num') {
+        /* keep focus */
+      }
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         const live = currentLimit(cfg.id);
@@ -163,7 +187,9 @@
     };
 
     range.addEventListener('input', () => apply(range.value, 'range'));
-    num.addEventListener('input', () => { if (num.value !== '' && num.value !== '-') apply(num.value, 'num'); });
+    num.addEventListener('input', () => {
+      if (num.value !== '' && num.value !== '-') apply(num.value, 'num');
+    });
     num.addEventListener('change', () => apply(num.value, 'num'));
     num.addEventListener('blur', () => apply(num.value, 'num'));
 
@@ -227,7 +253,11 @@
 
   window.__gevLayerLimits = {
     inject: injectAll,
-    set: (id, n) => { saveLimit(id, clamp(n)); setLimit(id, clamp(n)); injectAll(); },
+    set: (id, n) => {
+      saveLimit(id, clamp(n));
+      setLimit(id, clamp(n));
+      injectAll();
+    },
     _layers: LAYERS,
   };
 

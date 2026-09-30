@@ -1,5 +1,8 @@
 import * as Cesium from 'cesium';
-import { applyModelAtmosphereWorkaround, isAppleMobilePlatform } from './atmosphereCompat.js';
+import {
+  applyModelAtmosphereWorkaround,
+  isAppleMobilePlatform,
+} from './atmosphereCompat.js';
 
 const PINCH_ZOOM_MULTIPLIER = 8;
 const MAX_PINCH_PIXEL_DELTA = 120;
@@ -115,13 +118,28 @@ export function createApplicationViewer({ container, creditContainer }) {
   // GEV 画面设置（gev-graphics.js 写入 localStorage 'gev.gfx'）: 创建期项
   // MSAA / preserveDrawingBuffer / 瓦片精度 / 帧率上限在此读取；由面板「重载生效」。
   let gfx = {};
-  try { gfx = JSON.parse(globalThis.localStorage?.getItem('gev.gfx') || '{}') || {}; } catch (e) { gfx = {}; }
-  const msaa = (gfx.msaa === 0 || gfx.msaa === 2 || gfx.msaa === 4) ? gfx.msaa : (apple ? 0 : 4);
-  const pdb = (typeof gfx.pdb === 'boolean') ? gfx.pdb : !apple;
-  const tileMSE = (typeof gfx.tileMSE === 'number') ? gfx.tileMSE : (apple ? 4 : 2);
-  const fps = (typeof gfx.fps === 'number') ? gfx.fps : (apple ? 30 : 60);
-  const gpuPref = (gfx.gpuPref === 'high-performance' || gfx.gpuPref === 'low-power' || gfx.gpuPref === 'default')
-    ? gfx.gpuPref : (apple ? 'default' : 'high-performance');
+  try {
+    gfx = JSON.parse(globalThis.localStorage?.getItem('gev.gfx') || '{}') || {};
+  } catch (e) {
+    gfx = {};
+  }
+  const msaa =
+    gfx.msaa === 0 || gfx.msaa === 2 || gfx.msaa === 4
+      ? gfx.msaa
+      : apple
+        ? 0
+        : 4;
+  const pdb = typeof gfx.pdb === 'boolean' ? gfx.pdb : !apple;
+  const tileMSE = typeof gfx.tileMSE === 'number' ? gfx.tileMSE : apple ? 4 : 2;
+  const fps = typeof gfx.fps === 'number' ? gfx.fps : apple ? 30 : 60;
+  const gpuPref =
+    gfx.gpuPref === 'high-performance' ||
+    gfx.gpuPref === 'low-power' ||
+    gfx.gpuPref === 'default'
+      ? gfx.gpuPref
+      : apple
+        ? 'default'
+        : 'high-performance';
   const viewer = new Cesium.Viewer(container, {
     timeline: false,
     animation: false,
@@ -145,7 +163,13 @@ export function createApplicationViewer({ container, creditContainer }) {
     // every frame). Screenshot features degrade; stability wins on mobile.
     // GEV: 强制浏览器优先使用高性能(独显)GPU —— 双显卡本上默认可能落到核显，
     // 表现为"很卡/没调用 GPU"。preserveDrawingBuffer 由画面设置面板控制。
-    contextOptions: { webgl: { preserveDrawingBuffer: pdb, powerPreference: gpuPref, failIfMajorPerformanceCaveat: false } },
+    contextOptions: {
+      webgl: {
+        preserveDrawingBuffer: pdb,
+        powerPreference: gpuPref,
+        failIfMajorPerformanceCaveat: false,
+      },
+    },
   });
   try {
     viewer.targetFrameRate = fps;

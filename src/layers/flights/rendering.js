@@ -453,7 +453,10 @@ export function createRendering({
    *  the same rule (its billboard entity is always the fallback visual). */
 
   function _syncModelToClass(icao24) {
-    const key = _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
+    const key = _specKeyFor(
+      flightState.records.data.get(icao24)?.klass,
+      flightState.records.data.get(icao24)?.typeCode,
+    );
     const current = flightState._models.get(icao24);
     if (
       (current && current._gevSpecKey !== key) ||
@@ -525,10 +528,16 @@ export function createRendering({
     // aircraft mid-load, the post-await admission below rejects the stale asset.
     // Boost state likewise: the creation options bake it in, so a mid-load
     // toggle must reject too (the reload queue only covers ADMITTED models).
-    const specKey = _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
+    const specKey = _specKeyFor(
+      flightState.records.data.get(icao24)?.klass,
+      flightState.records.data.get(icao24)?.typeCode,
+    );
     const loadIrBoost = flightState._irBoost;
     try {
-      const spec = _modelSpec(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode);
+      const spec = _modelSpec(
+        flightState.records.data.get(icao24)?.klass,
+        flightState.records.data.get(icao24)?.typeCode,
+      );
       model = await Cesium.Model.fromGltfAsync({
         url: resolveAsset(spec.url),
         asynchronous: false,
@@ -593,7 +602,10 @@ export function createRendering({
       flightState._models.has(icao24) ||
       flightState._models.size >= _modelCap() ||
       // Class reclassified mid-load → this GLB/scale is for the OLD class.
-      _specKeyFor(flightState.records.data.get(icao24)?.klass, flightState.records.data.get(icao24)?.typeCode) !== specKey ||
+      _specKeyFor(
+        flightState.records.data.get(icao24)?.klass,
+        flightState.records.data.get(icao24)?.typeCode,
+      ) !== specKey ||
       // IR boost flipped mid-load → this model baked the wrong shader/tint.
       flightState._irBoost !== loadIrBoost;
     if (stale) {

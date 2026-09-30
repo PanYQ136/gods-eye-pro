@@ -60,13 +60,19 @@ export function createMilitarySnapshotRenderer({
     ) {
       const ranked = [];
       for (const a of snapshot.records) {
-        const d = approxDistanceKm(viewerLatDeg, viewerLonDeg, a.latitude, a.longitude);
+        const d = approxDistanceKm(
+          viewerLatDeg,
+          viewerLonDeg,
+          a.latitude,
+          a.longitude,
+        );
         if (Number.isFinite(d)) ranked.push([d, a.id]);
       }
       ranked.sort((a, b) => a[0] - b[0]);
       capAllowed = new Set();
       const keep = Math.max(0, Math.floor(capN));
-      for (let i = 0; i < ranked.length && i < keep; i += 1) capAllowed.add(ranked[i][1]);
+      for (let i = 0; i < ranked.length && i < keep; i += 1)
+        capAllowed.add(ranked[i][1]);
       if (flightState._trackedIcao) capAllowed.add(flightState._trackedIcao);
     }
 
@@ -74,7 +80,11 @@ export function createMilitarySnapshotRenderer({
       const icao24 = aircraft.id;
 
       // 超出操作员上限：当远处接触一样卸掉（跟踪机永远保留）。
-      if (capAllowed && !capAllowed.has(icao24) && icao24 !== flightState._trackedIcao) {
+      if (
+        capAllowed &&
+        !capAllowed.has(icao24) &&
+        icao24 !== flightState._trackedIcao
+      ) {
         const capBb = flightState._billboards.get(icao24);
         if (capBb) {
           flightState._billboardCollection.remove(capBb);

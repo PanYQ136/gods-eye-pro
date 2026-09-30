@@ -102,12 +102,16 @@
   const E2 = F * (2 - F);
   function ecefToLla(c) {
     if (!c || !Number.isFinite(c.x)) return null;
-    const x = c.x, y = c.y, z = c.z;
+    const x = c.x,
+      y = c.y,
+      z = c.z;
     const lon = Math.atan2(y, x);
     const p = Math.hypot(x, y);
-    if (p < 1e-6) return { lat: z < 0 ? -90 : 90, lon: 0, alt: Math.abs(z) - A };
+    if (p < 1e-6)
+      return { lat: z < 0 ? -90 : 90, lon: 0, alt: Math.abs(z) - A };
     let lat = Math.atan2(z, p * (1 - E2));
-    let N = A, alt = 0;
+    let N = A,
+      alt = 0;
     for (let i = 0; i < 6; i += 1) {
       const s = Math.sin(lat);
       N = A / Math.sqrt(1 - E2 * s * s);
@@ -134,7 +138,10 @@
   function fmtNum(v, digits) {
     const n = Number(v);
     if (!Number.isFinite(n)) return String(v);
-    return n.toLocaleString('en-US', { maximumFractionDigits: digits ?? 0, minimumFractionDigits: 0 });
+    return n.toLocaleString('en-US', {
+      maximumFractionDigits: digits ?? 0,
+      minimumFractionDigits: 0,
+    });
   }
   function fmtCoord(lat, lon) {
     const ns = lat >= 0 ? 'N' : 'S';
@@ -192,7 +199,11 @@
 
   function makeDraggable(el) {
     const head = el.querySelector('.gd-head');
-    let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false;
+    let sx = 0,
+      sy = 0,
+      ox = 0,
+      oy = 0,
+      dragging = false;
     head.addEventListener('pointerdown', (e) => {
       if (e.target.classList.contains('gd-x')) return;
       dragging = true;
@@ -200,17 +211,31 @@
       el.style.left = r.left + 'px';
       el.style.top = r.top + 'px';
       el.style.bottom = 'auto';
-      sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+      sx = e.clientX;
+      sy = e.clientY;
+      ox = r.left;
+      oy = r.top;
       head.setPointerCapture(e.pointerId);
     });
     head.addEventListener('pointermove', (e) => {
       if (!dragging) return;
-      const nx = Math.max(4, Math.min(window.innerWidth - 60, ox + (e.clientX - sx)));
-      const ny = Math.max(4, Math.min(window.innerHeight - 40, oy + (e.clientY - sy)));
+      const nx = Math.max(
+        4,
+        Math.min(window.innerWidth - 60, ox + (e.clientX - sx)),
+      );
+      const ny = Math.max(
+        4,
+        Math.min(window.innerHeight - 40, oy + (e.clientY - sy)),
+      );
       el.style.left = nx + 'px';
       el.style.top = ny + 'px';
     });
-    const end = (e) => { dragging = false; try { head.releasePointerCapture(e.pointerId); } catch {} };
+    const end = (e) => {
+      dragging = false;
+      try {
+        head.releasePointerCapture(e.pointerId);
+      } catch {}
+    };
     head.addEventListener('pointerup', end);
     head.addEventListener('pointercancel', end);
   }
@@ -230,7 +255,13 @@
       const val = specs[k];
       if (val === null || val === undefined || val === '') continue;
       const label = FIELD_LABELS[k] || k;
-      rows.push('<tr><td class="k">' + esc(label) + '</td><td class="v">' + esc(String(val)) + '</td></tr>');
+      rows.push(
+        '<tr><td class="k">' +
+          esc(label) +
+          '</td><td class="v">' +
+          esc(String(val)) +
+          '</td></tr>',
+      );
     }
     if (!rows.length && Array.isArray(t.details)) {
       for (const line of t.details) {
@@ -241,7 +272,11 @@
       ? '<tbody>' + rows.join('') + '</tbody>'
       : '<tbody><tr><td class="v">（无详细参数）</td></tr></tbody>';
     // 状态徽标
-    const stale = t.stale === true || String(specs.status || '').toLowerCase().indexOf('stale') >= 0;
+    const stale =
+      t.stale === true ||
+      String(specs.status || '')
+        .toLowerCase()
+        .indexOf('stale') >= 0;
     state.els.badge.textContent = stale ? 'STALE' : 'LIVE';
     state.els.badge.className = 'gd-badge ' + (stale ? 'stale' : 'live');
     state.els.src.textContent = t.source || '实时数据';
@@ -249,9 +284,19 @@
 
   // ── 外部补充：航司 / 航线 / 起降机场 / 预计到达（独立于主应用，整段可删）──
   const ROUTE_KEY = 'gev-dossier-routes';
-  const routeCache = (() => { try { return JSON.parse(sessionStorage.getItem(ROUTE_KEY)) || {}; } catch { return {}; } })();
+  const routeCache = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(ROUTE_KEY)) || {};
+    } catch {
+      return {};
+    }
+  })();
   const routePending = new Map();
-  function persistRoutes() { try { sessionStorage.setItem(ROUTE_KEY, JSON.stringify(routeCache)); } catch {} }
+  function persistRoutes() {
+    try {
+      sessionStorage.setItem(ROUTE_KEY, JSON.stringify(routeCache));
+    } catch {}
+  }
   function fetchRoute(cs) {
     if (!cs) return Promise.resolve(null);
     if (cs in routeCache) return Promise.resolve(routeCache[cs]);
@@ -259,87 +304,144 @@
     const p = fetch('/api/adsbdb/route/' + encodeURIComponent(cs))
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        const v = d && d.found
-          ? { airline: d.airline || null, origin: d.origin || null, destination: d.destination || null }
-          : null;
-        routeCache[cs] = v; if (v) persistRoutes(); return v;
+        const v =
+          d && d.found
+            ? {
+                airline: d.airline || null,
+                origin: d.origin || null,
+                destination: d.destination || null,
+              }
+            : null;
+        routeCache[cs] = v;
+        if (v) persistRoutes();
+        return v;
       })
       .catch(() => null)
       .finally(() => routePending.delete(cs));
-    routePending.set(cs, p); return p;
+    routePending.set(cs, p);
+    return p;
   }
   function airportLabel(a) {
     if (!a) return '';
     const code = String(a.code || '').trim();
     const name = String(a.name || '').trim();
-    if (name && code && name.toLowerCase() !== code.toLowerCase()) return name + ' (' + code + ')';
+    if (name && code && name.toLowerCase() !== code.toLowerCase())
+      return name + ' (' + code + ')';
     return name || code || '';
   }
   const EARTH_R = 6371008.8;
   function haversineM(lat1, lon1, lat2, lon2) {
     const rad = (d) => (d * Math.PI) / 180;
-    const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
+    const dLat = rad(lat2 - lat1),
+      dLon = rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
     return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(a)));
   }
   function trackedInfo() {
     try {
       const g = window.__godsEyeView;
       const reg = g && g.dataManager && g.dataManager.layers;
-      const mod = reg && reg.get && reg.get('flights') && reg.get('flights').module;
+      const mod =
+        reg && reg.get && reg.get('flights') && reg.get('flights').module;
       return (mod && mod.getTrackedInfo && mod.getTrackedInfo()) || null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
   function flightRecord(id, cs) {
     try {
       const g = window.__godsEyeView;
       const reg = g && g.dataManager && g.dataManager.layers;
-      const mod = reg && reg.get && reg.get('flights') && reg.get('flights').module;
+      const mod =
+        reg && reg.get && reg.get('flights') && reg.get('flights').module;
       const ps = mod && mod.getAllPositions && mod.getAllPositions();
       if (!Array.isArray(ps)) return null;
       const key = String(id || '').toLowerCase();
-      const want = String(cs || '').trim().toUpperCase();
-      return ps.find((p) => p && (
-        (key && String(p.id || '').toLowerCase() === key) ||
-        (want && String(p.label || '').trim().toUpperCase() === want)
-      )) || null;
-    } catch { return null; }
+      const want = String(cs || '')
+        .trim()
+        .toUpperCase();
+      return (
+        ps.find(
+          (p) =>
+            p &&
+            ((key && String(p.id || '').toLowerCase() === key) ||
+              (want &&
+                String(p.label || '')
+                  .trim()
+                  .toUpperCase() === want)),
+        ) || null
+      );
+    } catch {
+      return null;
+    }
   }
 
   function esc(s) {
-    return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    return String(s).replace(
+      /[&<>"]/g,
+      (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+    );
   }
 
   function tick() {
     if (state.el && state.el.classList.contains('show') && state.posGetter) {
       let cart = null;
-      try { cart = state.posGetter(); } catch { cart = null; }
+      try {
+        cart = state.posGetter();
+      } catch {
+        cart = null;
+      }
       const lla = ecefToLla(cart);
       if (lla) {
         state.els.ll.textContent = fmtCoord(lla.lat, lla.lon);
         state.els.alt.textContent = fmtNum(lla.alt, 0) + ' m';
         updateEta(lla);
       }
-      state.els.upd.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+      state.els.upd.textContent = new Date().toLocaleTimeString('zh-CN', {
+        hour12: false,
+      });
     }
   }
   function updateEta(lla) {
     if (!state.els.eta) return;
     const t = state.target;
     const dest = t && t.dest;
-    if (!dest || !Number.isFinite(dest.lat) || !Number.isFinite(dest.lon)) { state.els.eta.textContent = '—'; return; }
+    if (!dest || !Number.isFinite(dest.lat) || !Number.isFinite(dest.lon)) {
+      state.els.eta.textContent = '—';
+      return;
+    }
     const remM = haversineM(lla.lat, lla.lon, dest.lat, dest.lon);
     const kt = parseFloat(String((t.specs && t.specs.speed) || ''));
-    if (!Number.isFinite(kt) || kt <= 1) { state.els.eta.textContent = fmtNum(remM / 1000, 0) + ' km（地速不足）'; return; }
+    if (!Number.isFinite(kt) || kt <= 1) {
+      state.els.eta.textContent = fmtNum(remM / 1000, 0) + ' km（地速不足）';
+      return;
+    }
     const secs = remM / (kt * 0.514444);
-    if (!Number.isFinite(secs) || secs > 86400) { state.els.eta.textContent = fmtNum(remM / 1000, 0) + ' km'; return; }
+    if (!Number.isFinite(secs) || secs > 86400) {
+      state.els.eta.textContent = fmtNum(remM / 1000, 0) + ' km';
+      return;
+    }
     const eta = new Date(Date.now() + secs * 1000);
     state.els.eta.textContent =
-      eta.toLocaleTimeString('zh-CN', { hour12: false }) + '（约 ' + Math.round(secs / 60) + ' 分 · ' + fmtNum(remM / 1000, 0) + ' km）';
+      eta.toLocaleTimeString('zh-CN', { hour12: false }) +
+      '（约 ' +
+      Math.round(secs / 60) +
+      ' 分 · ' +
+      fmtNum(remM / 1000, 0) +
+      ' km）';
   }
   // setInterval 而非 rAF：后台标签 rAF 会被暂停，位置读数不能因此停摆。
-  function scheduleTick() { if (state.rafId == null) state.rafId = setInterval(tick, 250); }
-  function stopTick() { if (state.rafId != null) { clearInterval(state.rafId); state.rafId = null; } }
+  function scheduleTick() {
+    if (state.rafId == null) state.rafId = setInterval(tick, 250);
+  }
+  function stopTick() {
+    if (state.rafId != null) {
+      clearInterval(state.rafId);
+      state.rafId = null;
+    }
+  }
 
   function show() {
     if (!state.el || !state.target) return;
@@ -365,7 +467,9 @@
         if (prop && typeof prop.getValue === 'function') {
           return prop.getValue(viewer.clock.currentTime);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       return null;
     };
   }
@@ -381,23 +485,38 @@
       }
     }
     // 兜底：主应用偶发不发布明细时，从图层实时记录补齐 航司/机型/注册号/呼号
-    const icao = String((entity && entity.id) || '').trim().toLowerCase();
-    const csFromTitle = (String(model.title || '').trim().split(/[\s·]+/)[0] || '').toUpperCase();
+    const icao = String((entity && entity.id) || '')
+      .trim()
+      .toLowerCase();
+    const csFromTitle = (
+      String(model.title || '')
+        .trim()
+        .split(/[\s·]+/)[0] || ''
+    ).toUpperCase();
     const rec = flightRecord(icao, specs.callsign || csFromTitle);
     if (rec) {
       if (!specs.operator && rec.airline) specs.operator = rec.airline;
-      if (!specs.type && (rec.typeName || rec.typeCode)) specs.type = rec.typeName || rec.typeCode;
-      if (!specs.registration && rec.registration) specs.registration = rec.registration;
+      if (!specs.type && (rec.typeName || rec.typeCode))
+        specs.type = rec.typeName || rec.typeCode;
+      if (!specs.registration && rec.registration)
+        specs.registration = rec.registration;
       if (!specs.callsign && rec.label) specs.callsign = rec.label;
     }
     // 再兜底：用图层跟踪信息补齐 地速/航向 与目的地坐标（实时值，最可靠）
     // 守卫：仅当图层跟踪的呼号与本档案标题一致（确系同一架航班）才采用，
     // 避免跟踪船/火点时串到上一架航班的数据。
     const ti0 = trackedInfo();
-    const ti = (ti0 && csFromTitle && String(ti0.callsign || '').toUpperCase() === csFromTitle) ? ti0 : null;
+    const ti =
+      ti0 &&
+      csFromTitle &&
+      String(ti0.callsign || '').toUpperCase() === csFromTitle
+        ? ti0
+        : null;
     if (ti) {
-      if (!specs.speed && Number.isFinite(ti.velocityMps)) specs.speed = Math.round(ti.velocityMps * 1.944) + ' kt';
-      if (!specs.heading && Number.isFinite(ti.track)) specs.heading = Math.round(ti.track) + '°';
+      if (!specs.speed && Number.isFinite(ti.velocityMps))
+        specs.speed = Math.round(ti.velocityMps * 1.944) + ' kt';
+      if (!specs.heading && Number.isFinite(ti.track))
+        specs.heading = Math.round(ti.track) + '°';
     }
     const t = {
       title: String(model.title || '').trim(),
@@ -405,25 +524,37 @@
       accent: model.accent || '#39d0ff',
       specs,
       details: Array.isArray(model.details) ? model.details : [],
-      stale: model.specs && typeof model.specs.status === 'string'
-        ? /stale/i.test(model.specs.status)
-        : /STALE/.test((model.details || []).join(' ')),
+      stale:
+        model.specs && typeof model.specs.status === 'string'
+          ? /stale/i.test(model.specs.status)
+          : /STALE/.test((model.details || []).join(' ')),
       source: (model.specs && model.specs.source) || '实时数据 · 相机跟踪',
-      dest: (ti && ti.route && ti.route.destination && Number.isFinite(ti.route.destination.lat))
-        ? { lat: ti.route.destination.lat, lon: ti.route.destination.lon }
-        : null,
+      dest:
+        ti &&
+        ti.route &&
+        ti.route.destination &&
+        Number.isFinite(ti.route.destination.lat)
+          ? { lat: ti.route.destination.lat, lon: ti.route.destination.lon }
+          : null,
     };
     // 航线/起降机场兜底 + 取目的地坐标（算 预计到达）
-    const cs = String(specs.callsign || csFromTitle || '').trim().toUpperCase();
+    const cs = String(specs.callsign || csFromTitle || '')
+      .trim()
+      .toUpperCase();
     if (cs && /^[A-Z]{3}\d/.test(cs)) {
       fetchRoute(cs).then((r) => {
         if (!r || state.target !== t) return;
         if (r.airline && !t.specs.operator) t.specs.operator = r.airline;
         if (r.origin && r.destination) {
-          if (!t.specs.route) t.specs.route = (r.origin.code || '?') + ' → ' + (r.destination.code || '?');
+          if (!t.specs.route)
+            t.specs.route =
+              (r.origin.code || '?') + ' → ' + (r.destination.code || '?');
           if (!t.specs.departure) t.specs.departure = airportLabel(r.origin);
           if (!t.specs.arrival) t.specs.arrival = airportLabel(r.destination);
-          if (Number.isFinite(r.destination.lat) && Number.isFinite(r.destination.lon))
+          if (
+            Number.isFinite(r.destination.lat) &&
+            Number.isFinite(r.destination.lon)
+          )
             t.dest = { lat: r.destination.lat, lon: r.destination.lon };
         }
         renderStatic();
@@ -434,7 +565,8 @@
 
   function buildIdent(model) {
     // details[1] 通常是 "航司 · 机型"
-    if (Array.isArray(model.details) && model.details[1]) return String(model.details[1]);
+    if (Array.isArray(model.details) && model.details[1])
+      return String(model.details[1]);
     if (model.specs) {
       const parts = [model.specs.operator, model.specs.type].filter(Boolean);
       if (parts.length) return parts.join(' · ');
@@ -447,15 +579,25 @@
     const entity = state.viewer.trackedEntity;
     if (!entity) {
       // 没有相机跟踪目标
-      if (state.trackSrc !== 'focus') { state.target = null; state.posGetter = null; hide(); }
+      if (state.trackSrc !== 'focus') {
+        state.target = null;
+        state.posGetter = null;
+        hide();
+      }
       return;
     }
     const t = targetFromTrackedEntity(entity, state.viewer);
-    if (!t) { state.target = null; hide(); return; }
+    if (!t) {
+      state.target = null;
+      hide();
+      return;
+    }
     state.trackSrc = 'tracked';
     state.target = t;
     state.posGetter = posGetterFor(entity, state.viewer);
-    if (entity.gevLabelModel._dossierRefresh) { /* noop */ }
+    if (entity.gevLabelModel._dossierRefresh) {
+      /* noop */
+    }
     show();
   }
 
@@ -478,7 +620,9 @@
       details: [],
       source: '点击锁定（位置为锁定时刻）',
     };
-    const frozen = d.position ? { x: d.position.x, y: d.position.y, z: d.position.z } : null;
+    const frozen = d.position
+      ? { x: d.position.x, y: d.position.y, z: d.position.z }
+      : null;
     state.posGetter = frozen ? () => frozen : null;
     show();
   }
@@ -505,7 +649,9 @@
   let tries = 0;
   const timer = setInterval(() => {
     tries += 1;
-    if (window.__gevViewer) { start(); }
+    if (window.__gevViewer) {
+      start();
+    }
     if (state.started || tries > 300) clearInterval(timer);
   }, 500);
 

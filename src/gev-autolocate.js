@@ -52,8 +52,11 @@ import {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const cap = (p, ms) => Promise.race([p, sleep(ms).then(() => null)]);
   const valid = (l) =>
-    l && Number.isFinite(l.lat) && Number.isFinite(l.lon) &&
-    Math.abs(l.lat) <= 90 && Math.abs(l.lon) <= 180 &&
+    l &&
+    Number.isFinite(l.lat) &&
+    Number.isFinite(l.lon) &&
+    Math.abs(l.lat) <= 90 &&
+    Math.abs(l.lon) <= 180 &&
     !(l.lat === 0 && l.lon === 0);
 
   /* ── 源 1：高德 JS API Geolocation（手机 GPS/WiFi，最准） ── */
@@ -84,15 +87,24 @@ import {
               timeout: 6000,
             }).getCurrentPosition((s, r) => {
               if (s === 'complete' && r && r.position)
-                res({ lon: r.position.getLng(), lat: r.position.getLat(), acc: r.accuracy, source: 'amap-gps' });
+                res({
+                  lon: r.position.getLng(),
+                  lat: r.position.getLat(),
+                  acc: r.accuracy,
+                  source: 'amap-gps',
+                });
               else res(null);
             });
-          } catch (e) { res(null); }
+          } catch (e) {
+            res(null);
+          }
         }),
         GEO_CAP,
       );
       return valid(pos) ? pos : null;
-    } catch (e) { return null; }
+    } catch (e) {
+      return null;
+    }
   }
 
   /* ── 源 2：浏览器内置定位 ── */
@@ -100,20 +112,50 @@ import {
     return new Promise((resolve) => {
       if (!navigator.geolocation) return resolve(null);
       let done = false;
-      const fin = (r) => { if (!done) { done = true; resolve(r); } };
+      const fin = (r) => {
+        if (!done) {
+          done = true;
+          resolve(r);
+        }
+      };
       const g = setTimeout(() => fin(null), (opts.timeout || 6000) + 1500);
       try {
         navigator.geolocation.getCurrentPosition(
-          (p) => { clearTimeout(g); fin({ lon: p.coords.longitude, lat: p.coords.latitude, acc: p.coords.accuracy, source: 'browser' }); },
-          () => { clearTimeout(g); fin(null); },
+          (p) => {
+            clearTimeout(g);
+            fin({
+              lon: p.coords.longitude,
+              lat: p.coords.latitude,
+              acc: p.coords.accuracy,
+              source: 'browser',
+            });
+          },
+          () => {
+            clearTimeout(g);
+            fin(null);
+          },
           opts,
         );
-      } catch (e) { clearTimeout(g); fin(null); }
+      } catch (e) {
+        clearTimeout(g);
+        fin(null);
+      }
     });
   }
   async function browserGeo() {
-    let r = await cap(tryNav({ enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }), GEO_CAP + 1500);
-    if (!valid(r)) r = await cap(tryNav({ enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }), GEO_CAP + 1500);
+    let r = await cap(
+      tryNav({ enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }),
+      GEO_CAP + 1500,
+    );
+    if (!valid(r))
+      r = await cap(
+        tryNav({
+          enableHighAccuracy: false,
+          timeout: 6000,
+          maximumAge: 600000,
+        }),
+        GEO_CAP + 1500,
+      );
     return valid(r) ? r : null;
   }
 
@@ -121,32 +163,52 @@ import {
   async function amapIpGeo() {
     if (!AMAP_KEY) return null;
     try {
-      const u = 'https://restapi.amap.com/v3/ip?key=' + encodeURIComponent(AMAP_KEY);
-      const r = await cap(fetch(u).then((x) => x.json()), GEO_CAP);
+      const u =
+        'https://restapi.amap.com/v3/ip?key=' + encodeURIComponent(AMAP_KEY);
+      const r = await cap(
+        fetch(u).then((x) => x.json()),
+        GEO_CAP,
+      );
       if (!r || r.status !== '1' || !r.rectangle) return null;
       // rectangle: "lng1,lat1;lng2,lat2" → 取中心
-      const m = String(r.rectangle).match(/(-?[\d.]+),(-?[\d.]+);(-?[\d.]+),(-?[\d.]+)/);
+      const m = String(r.rectangle).match(
+        /(-?[\d.]+),(-?[\d.]+);(-?[\d.]+),(-?[\d.]+)/,
+      );
       if (!m) return null;
       const lon = (parseFloat(m[1]) + parseFloat(m[3])) / 2;
       const lat = (parseFloat(m[2]) + parseFloat(m[4])) / 2;
       return { lon, lat, city: r.city || r.province || '', source: 'amap-ip' };
-    } catch (e) { return null; }
+    } catch (e) {
+      return null;
+    }
   }
 
   /* ── 源 4：本地缓存 ── */
   function lastKnown() {
     try {
       const l = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
-      return valid(l) ? { ...l, source: (l.source || 'cache') + '+cache' } : null;
-    } catch (e) { return null; }
+      return valid(l)
+        ? { ...l, source: (l.source || 'cache') + '+cache' }
+        : null;
+    } catch (e) {
+      return null;
+    }
   }
   function saveLast(loc) {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(loc)); } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(loc));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   async function resolveLocation() {
     // 并行三源（页面一开就发起；通常遮罩收起前已就绪）
-    const [ajs, br, ip] = await Promise.all([amapJsGeo(), browserGeo(), amapIpGeo()]);
+    const [ajs, br, ip] = await Promise.all([
+      amapJsGeo(),
+      browserGeo(),
+      amapIpGeo(),
+    ]);
     CINE.sources = {
       amapJs: ajs && { lon: ajs.lon, lat: ajs.lat, acc: ajs.acc },
       browser: br && { lon: br.lon, lat: br.lat, acc: br.acc },
@@ -156,8 +218,18 @@ import {
     CINE.geo = loc;
     if (loc.source && !String(loc.source).includes('cache')) saveLast(loc);
     try {
-      console.log('[GEV] location resolved:', JSON.stringify({ source: loc.source, lat: +loc.lat.toFixed(4), lon: +loc.lon.toFixed(4), city: loc.city || undefined }));
-    } catch (e) { /* ignore */ }
+      console.log(
+        '[GEV] location resolved:',
+        JSON.stringify({
+          source: loc.source,
+          lat: +loc.lat.toFixed(4),
+          lon: +loc.lon.toFixed(4),
+          city: loc.city || undefined,
+        }),
+      );
+    } catch (e) {
+      /* ignore */
+    }
     return loc;
   }
 
@@ -170,26 +242,59 @@ import {
     if (!sceneReady(v)) return false;
     v.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(lon, lat, START_HEIGHT),
-      orientation: { heading: Cesium.Math.toRadians(15), pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      orientation: {
+        heading: Cesium.Math.toRadians(15),
+        pitch: Cesium.Math.toRadians(-90),
+        roll: 0,
+      },
     });
     return true;
   }
 
   function tweenTo(target) {
     const v = viewer();
-    if (!sceneReady(v)) { CINE.stage = 'tween-noScene'; return; }
+    if (!sceneReady(v)) {
+      CINE.stage = 'tween-noScene';
+      return;
+    }
     CINE.stage = 'tweening';
     const cam = v.camera;
     const scene = v.scene;
     let from;
     try {
       const c = cam.positionCartographic;
-      from = { lon: Cesium.Math.toDegrees(c.longitude), lat: Cesium.Math.toDegrees(c.latitude), h: c.height, heading: cam.heading, pitch: cam.pitch };
-    } catch (e) { from = null; }
-    if (!from || !Number.isFinite(from.lon) || !Number.isFinite(from.lat) || !Number.isFinite(from.h) || from.h <= 0) {
-      from = { lon: HOME.lon, lat: HOME.lat, h: START_HEIGHT, heading: Cesium.Math.toRadians(15), pitch: Cesium.Math.toRadians(-90) };
+      from = {
+        lon: Cesium.Math.toDegrees(c.longitude),
+        lat: Cesium.Math.toDegrees(c.latitude),
+        h: c.height,
+        heading: cam.heading,
+        pitch: cam.pitch,
+      };
+    } catch (e) {
+      from = null;
     }
-    const to = { lon: target.lon, lat: target.lat, h: END_HEIGHT, heading: Cesium.Math.toRadians(15), pitch: Cesium.Math.toRadians(-30) };
+    if (
+      !from ||
+      !Number.isFinite(from.lon) ||
+      !Number.isFinite(from.lat) ||
+      !Number.isFinite(from.h) ||
+      from.h <= 0
+    ) {
+      from = {
+        lon: HOME.lon,
+        lat: HOME.lat,
+        h: START_HEIGHT,
+        heading: Cesium.Math.toRadians(15),
+        pitch: Cesium.Math.toRadians(-90),
+      };
+    }
+    const to = {
+      lon: target.lon,
+      lat: target.lat,
+      h: END_HEIGHT,
+      heading: Cesium.Math.toRadians(15),
+      pitch: Cesium.Math.toRadians(-30),
+    };
 
     let done = false;
     let raf = 0;
@@ -198,7 +303,11 @@ import {
     const finish = () => {
       if (done) return;
       done = true;
-      try { cancelAnimationFrame(raf); } catch (e) { /* ignore */ }
+      try {
+        cancelAnimationFrame(raf);
+      } catch (e) {
+        /* ignore */
+      }
       releaseContinuousRender('gev-cine');
     };
     holdContinuousRender('gev-cine');
@@ -212,14 +321,29 @@ import {
       const h = from.h * Math.pow(to.h / from.h, s);
       const lon = from.lon + (to.lon - from.lon) * s;
       const lat = from.lat + (to.lat - from.lat) * s;
-      const dHeading = Math.atan2(Math.sin(to.heading - from.heading), Math.cos(to.heading - from.heading));
+      const dHeading = Math.atan2(
+        Math.sin(to.heading - from.heading),
+        Math.cos(to.heading - from.heading),
+      );
       const heading = from.heading + dHeading * s;
       const pitch = from.pitch + (to.pitch - from.pitch) * s;
       try {
-        cam.setView({ destination: Cesium.Cartesian3.fromDegrees(lon, lat, h), orientation: { heading, pitch, roll: 0 } });
-      } catch (e) { /* ignore */ }
-      try { scene.requestRender?.(); } catch (e) { /* ignore */ }
-      if (t >= 1) { finish(); return; }
+        cam.setView({
+          destination: Cesium.Cartesian3.fromDegrees(lon, lat, h),
+          orientation: { heading, pitch, roll: 0 },
+        });
+      } catch (e) {
+        /* ignore */
+      }
+      try {
+        scene.requestRender?.();
+      } catch (e) {
+        /* ignore */
+      }
+      if (t >= 1) {
+        finish();
+        return;
+      }
       raf = requestAnimationFrame(step);
     };
     raf = requestAnimationFrame(step);
@@ -261,30 +385,38 @@ import {
       if (tries++ < 160) setTimeout(run, 250);
       return;
     }
-    if (firstCall && hasShareLink()) { ran = true; CINE.stage = 'share-skip'; return; }
+    if (firstCall && hasShareLink()) {
+      ran = true;
+      CINE.stage = 'share-skip';
+      return;
+    }
     firstCall = false;
     ran = true;
 
     CINE.stage = 'locating';
-    const locP = resolveLocation();      // ① 并行定位（不等瓦片）
+    const locP = resolveLocation(); // ① 并行定位（不等瓦片）
 
-    await waitForLoaderHidden(30000);    // ② 等启动遮罩收起
+    await waitForLoaderHidden(30000); // ② 等启动遮罩收起
     CINE.stage = 'space-set';
-    setSpaceView(HOME.lon, HOME.lat);    // ③ 立刻出太空视角
+    setSpaceView(HOME.lon, HOME.lat); // ③ 立刻出太空视角
 
-    const loc = await locP;              // ④ 定位结果
+    const loc = await locP; // ④ 定位结果
     if (loc && loc.source !== 'home') {
-      setSpaceView(loc.lon, loc.lat);    // 对准设备经度（10万米高空跳变几乎看不出）
-      CINE.stage = loc.source === 'home' ? 'space-set:default' : 'space-set:device';
+      setSpaceView(loc.lon, loc.lat); // 对准设备经度（10万米高空跳变几乎看不出）
+      CINE.stage =
+        loc.source === 'home' ? 'space-set:default' : 'space-set:device';
     } else {
       CINE.stage = 'space-set:default';
     }
 
     await sleep(MIN_DWELL_MS);
-    tweenTo(loc || { ...HOME, source: 'home' });   // ⑤ 电影镜头放大
+    tweenTo(loc || { ...HOME, source: 'home' }); // ⑤ 电影镜头放大
 
     if (loc && loc.source && loc.source !== 'home') {
-      const tag = { 'amap-gps': '高德GPS', browser: '浏览器', 'amap-ip': '高德IP' }[loc.source] || loc.source;
+      const tag =
+        { 'amap-gps': '高德GPS', browser: '浏览器', 'amap-ip': '高德IP' }[
+          loc.source
+        ] || loc.source;
       toast('定位来源：' + tag + (loc.city ? '（' + loc.city + '）' : ''));
     } else if (loc && loc.source === 'home') {
       toast('未能获取设备定位，已定位到默认位置');

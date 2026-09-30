@@ -1,6 +1,9 @@
 import * as Cesium from 'cesium';
 import { nextCockpitNearContacts } from '../../data/cockpitAirLod.js';
-import { trackedModelZoomActive, trackedCrossfadeIconAlpha } from '../../data/trackedModelRegime.js';
+import {
+  trackedModelZoomActive,
+  trackedCrossfadeIconAlpha,
+} from '../../data/trackedModelRegime.js';
 import {
   screenProjectedRotation,
   stabilizeScreenRotation,

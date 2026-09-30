@@ -73,7 +73,12 @@ export function flyToFuzhou(viewer) {
  * @param {number} [finalHeight] Metres for the settled view.
  * @returns {Function} Cancels the pending or active flight.
  */
-export function cinematicFlyIn(viewer, longitude, latitude, finalHeight = 12000) {
+export function cinematicFlyIn(
+  viewer,
+  longitude,
+  latitude,
+  finalHeight = 12000,
+) {
   // NB: this app's render governor does not drive Cesium's flyTo tween, so a
   // programmatic flyTo never animates (the camera would stay put). Land with an
   // instant setView instead — reliable, and it forces a render.

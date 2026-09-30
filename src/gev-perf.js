@@ -22,7 +22,8 @@
     const out = [];
     for (let i = 0; i < scene.primitives.length; i++) {
       const p = scene.primitives.get(i);
-      if (p && p.constructor && p.constructor.name === 'Cesium3DTileset') out.push(p);
+      if (p && p.constructor && p.constructor.name === 'Cesium3DTileset')
+        out.push(p);
     }
     return out;
   }
@@ -33,7 +34,8 @@
     const tilesets = findTilesets(s);
     const stageOn = [];
     try {
-      for (let i = 0; i < s.postProcessStages.length; i++) stageOn.push(s.postProcessStages.get(i).enabled);
+      for (let i = 0; i < s.postProcessStages.length; i++)
+        stageOn.push(s.postProcessStages.get(i).enabled);
     } catch (e) {}
     st.saved = {
       res: v.resolutionScale,
@@ -54,27 +56,37 @@
       v.resolutionScale = 0.7;
       if (s.globe) s.globe.maximumScreenSpaceError = 6;
       st.saved.tilesets.forEach((t) => {
-        try { t.maximumScreenSpaceError = 48; } catch (e) {}
+        try {
+          t.maximumScreenSpaceError = 48;
+        } catch (e) {}
       });
       try {
-        for (let i = 0; i < s.postProcessStages.length; i++) s.postProcessStages.get(i).enabled = false;
+        for (let i = 0; i < s.postProcessStages.length; i++)
+          s.postProcessStages.get(i).enabled = false;
       } catch (e) {}
       if (v.targetFrameRate) v.targetFrameRate = 30;
     } else {
       v.resolutionScale = st.saved.res;
       if (s.globe) s.globe.maximumScreenSpaceError = st.saved.globeMSE;
       st.saved.tilesets.forEach((t, i) => {
-        if (st.saved.tilesetMSE[i] != null) { try { t.maximumScreenSpaceError = st.saved.tilesetMSE[i]; } catch (e) {} }
+        if (st.saved.tilesetMSE[i] != null) {
+          try {
+            t.maximumScreenSpaceError = st.saved.tilesetMSE[i];
+          } catch (e) {}
+        }
       });
       try {
         for (let i = 0; i < s.postProcessStages.length; i++) {
-          if (st.saved.stageOn[i] != null) s.postProcessStages.get(i).enabled = st.saved.stageOn[i];
+          if (st.saved.stageOn[i] != null)
+            s.postProcessStages.get(i).enabled = st.saved.stageOn[i];
         }
       } catch (e) {}
       if (st.saved.tfr) v.targetFrameRate = st.saved.tfr;
     }
     st.on = on;
-    try { localStorage.setItem(LS_KEY, on ? '1' : '0'); } catch (e) {}
+    try {
+      localStorage.setItem(LS_KEY, on ? '1' : '0');
+    } catch (e) {}
     const btn = document.getElementById('gev-perf-btn');
     if (btn) {
       btn.classList.toggle('on', on);
@@ -82,7 +94,14 @@
       btn.title = on ? '点击恢复画质' : '点击降低负载、提高帧率';
     }
     // 立刻刷新一帧，切换当场可见
-    try { v.scene.requestRenderMode = false; setTimeout(() => { try { v.scene.requestRenderMode = true; } catch (e) {} }, 260); } catch (e) {}
+    try {
+      v.scene.requestRenderMode = false;
+      setTimeout(() => {
+        try {
+          v.scene.requestRenderMode = true;
+        } catch (e) {}
+      }, 260);
+    } catch (e) {}
   }
 
   // 瓦片集（3D Tileset）通常异步加载，启动时可能还没就绪 → 稍后补设其 LOD。
@@ -90,7 +109,11 @@
     if (!st.on || !st.viewer) return;
     try {
       const ts = findTilesets(st.viewer.scene);
-      for (const t of ts) { try { t.maximumScreenSpaceError = 48; } catch (e) {} }
+      for (const t of ts) {
+        try {
+          t.maximumScreenSpaceError = 48;
+        } catch (e) {}
+      }
     } catch (e) {}
   }
 
@@ -140,13 +163,19 @@
     // FPS 计数：st.frames 过去从未自增（徽标恒 0）。用 requestAnimationFrame
     // 度量浏览器实际帧节奏——requestRenderMode 空闲不渲染时它仍反映真实流畅度。
     try {
-      const rafTick = () => { st.frames++; requestAnimationFrame(rafTick); };
+      const rafTick = () => {
+        st.frames++;
+        requestAnimationFrame(rafTick);
+      };
       requestAnimationFrame(rafTick);
       setInterval(tickFps, 500);
     } catch (e) {}
     // 用户要求「默认最大化流畅度」→ 首次默认开启性能模式（点按钮可关掉恢复画质/风格）
     let want = true;
-    try { const p = localStorage.getItem(LS_KEY); if (p != null) want = p === '1'; } catch (e) {}
+    try {
+      const p = localStorage.getItem(LS_KEY);
+      if (p != null) want = p === '1';
+    } catch (e) {}
     if (want) {
       apply(true);
       [3000, 9000, 18000].forEach((t) => setTimeout(applyTileLod, t));

@@ -45,7 +45,8 @@
       "src/data/adsbLolFallback.js",
       "src/data/aisStreamAdapter.js",
       "src/data/aisWatchdog.js",
-      "src/sources/httpBody.js"
+      "src/sources/httpBody.js",
+      "server/providers/common/ws-proxy-agent.js"
     ],
     "external": ["ws"]
   },
@@ -363,7 +364,12 @@
       "src/styles/thermal.js",
       "src/styles/anime.js",
       "src/styles/noir.js",
-      "src/styles/snow.js"
+      "src/styles/snow.js",
+      "src/styles/amber.js",
+      "src/styles/cinema.js",
+      "src/styles/ghost.js",
+      "src/styles/predator.js",
+      "src/styles/xray.js"
     ],
     "external": ["cesium"]
   },
@@ -614,7 +620,12 @@
       "src/ui/shellFacade.js",
       "src/ui/localSdrControls.js",
       "src/layers/localAdsb/feedNames.js",
-      "src/ui/localSdrPresentation.js"
+      "src/ui/localSdrPresentation.js",
+      "src/styles/amber.js",
+      "src/styles/cinema.js",
+      "src/styles/ghost.js",
+      "src/styles/predator.js",
+      "src/styles/xray.js"
     ],
     "external": ["cesium"]
   },
@@ -807,7 +818,9 @@
       "src/layers/military/recordPolicy.js",
       "src/layers/military/snapshotRenderer.js",
       "src/data/inputOwnership.js",
-      "src/data/modelEligibility.js"
+      "src/data/modelEligibility.js",
+      "src/layers/flights/recordPolicy.js",
+      "src/layers/flights/policy.js"
     ],
     "external": ["cesium"]
   },
@@ -855,7 +868,8 @@
       "src/layers/vessels/records.js",
       "src/layers/vessels/recordPolicy.js",
       "src/layers/vessels/snapshotRenderer.js",
-      "src/data/inputOwnership.js"
+      "src/data/inputOwnership.js",
+      "src/layers/flights/recordPolicy.js"
     ],
     "external": ["cesium"]
   },
@@ -1955,7 +1969,12 @@
       "src/layers/recentImagery/thumbnails.js",
       "src/maps/imageryHost.js",
       "src/ui/recentImagery.js",
-      "src/ui/imageryBoxTool.js"
+      "src/ui/imageryBoxTool.js",
+      "src/styles/amber.js",
+      "src/styles/cinema.js",
+      "src/styles/ghost.js",
+      "src/styles/predator.js",
+      "src/styles/xray.js"
     ],
     "external": [
       "hls.js",
@@ -2532,7 +2551,12 @@
       "src/ui/visualEffects.js",
       "src/ui/visualInput.js",
       "src/ui/visualPresets.js",
-      "src/ui/visualSettings.js"
+      "src/ui/visualSettings.js",
+      "src/styles/amber.js",
+      "src/styles/cinema.js",
+      "src/styles/ghost.js",
+      "src/styles/predator.js",
+      "src/styles/xray.js"
     ],
     "external": ["cesium"]
   },

@@ -283,7 +283,14 @@ export class CockpitCloudEffectsController {
         premultipliedAlpha: false,
         preserveDrawingBuffer: false,
         // GEV: 跟随画面设置的 GPU 偏好（默认高性能/独显），避免跨 GPU 合成拖慢。
-        powerPreference: (function () { try { var g = JSON.parse(localStorage.getItem('gev.gfx') || '{}'); return g.gpuPref || 'high-performance'; } catch (e) { return 'high-performance'; } })(),
+        powerPreference: (function () {
+          try {
+            var g = JSON.parse(localStorage.getItem('gev.gfx') || '{}');
+            return g.gpuPref || 'high-performance';
+          } catch (e) {
+            return 'high-performance';
+          }
+        })(),
       });
       if (!gl) throw new Error('WebGL unavailable');
 
