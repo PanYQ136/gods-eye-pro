@@ -344,6 +344,9 @@ export function createRendering({ state, services, parts }) {
       selected ? SELECTED_ICON_PX : undefined,
       {
         style,
+        // Explicit switch: on a DPR >= 3.8 panel FLEET_RASTER_PX is already
+        // >= SELECTED_ICON_PX, so the px comparison alone loses the variant.
+        selected,
       },
     );
     marker.width = px;

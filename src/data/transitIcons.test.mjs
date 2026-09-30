@@ -247,3 +247,29 @@ test('sensor raster halo stays dark across its screen-space band on a white roof
     assert.ok(black.pass, JSON.stringify({ selected, black }));
   }
 });
+
+test('an explicit selected flag survives a fleet raster at or above the selected size', () => {
+  // DPR >= 3.8 puts FLEET_RASTER_PX at 96-128 px — at or above
+  // SELECTED_ICON_PX — so `px > FLEET_RASTER_PX` can no longer separate the two
+  // variants. The explicit flag is the authoritative switch: it must still take
+  // the selected branch (its own halo frame and 30 px display size) whether the
+  // caller also passes the selected px or something below the fleet size.
+  const selectedByPx = transitIcon('bus', SELECTED_ICON_PX);
+  const selectedByFlag = transitIcon('bus', FLEET_RASTER_PX, {
+    selected: true,
+  });
+  const fleet = transitIcon('bus', FLEET_RASTER_PX);
+  assert.notEqual(fleet, selectedByPx, 'selected stays a distinct variant');
+  assert.equal(selectedByFlag, selectedByPx, 'flag picks the selected variant');
+  assert.equal(
+    transitIcon('bus', 1, { selected: true }),
+    selectedByPx,
+    'flag wins even when the px argument cannot express the choice',
+  );
+  assert.equal(transitIcon('bus', 1), fleet, 'no flag keeps the fleet default');
+  assert.equal(
+    transitIcon('bus', FLEET_RASTER_PX, { selected: false }),
+    fleet,
+    'an explicit false stays on the fleet branch',
+  );
+});

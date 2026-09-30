@@ -184,7 +184,15 @@ export function transitIconCacheSize() {
  */
 export function transitIcon(kind, px = FLEET_RASTER_PX, options = {}) {
   const k = BODIES[kind] ? kind : 'unknown';
-  const selected = px > FLEET_RASTER_PX;
+  // `options.selected` is the AUTHORITATIVE switch. The numeric comparison
+  // below cannot survive a panel whose FLEET_RASTER_PX reaches or passes
+  // SELECTED_ICON_PX: DPR 3.8 puts the fleet raster at 96 px and DPR 4 at 101,
+  // so `px > FLEET_RASTER_PX` is false for the selected 96 px source and the
+  // selected variant — its halo frame, its thermal profile and its 30 px
+  // display size — silently collapses into the fleet branch. Callers that know
+  // which variant they want say so out loud; the comparison stays only as a
+  // fallback for positional `px` callers.
+  const selected = options.selected ?? px > FLEET_RASTER_PX;
   px = selected ? SELECTED_ICON_PX : FLEET_RASTER_PX;
   const profile = transitStyleProfile(
     options.style ||
