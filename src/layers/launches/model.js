@@ -220,6 +220,10 @@ export function createModel({ state: layerState, services, parts, source }) {
               }))
             : [],
           orbit: launch.mission?.orbit || launch.orbit || null,
+          // Real launch/rocket photo for the mission panel (Launch Library 2).
+          imageUrl:
+            launch.image?.image_url || launch.image?.thumbnail_url || null,
+          imageName: launch.image?.name || null,
           source: 'Launch Library 2',
           inWindow:
             Number.isFinite(date) && date >= cutoff && date <= now.getTime(),
