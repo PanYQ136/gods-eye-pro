@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { vehicleIcon } from '../../data/vehicleIcons.js';
 import {
   TRAJECTORY_STAGE_COLORS,
   REPLAY_ORBIT_DURATION_SEC,
@@ -62,11 +63,18 @@ export function createRendering({
         setGraphicVisibility(entity.point, horizonVisible, time);
       }
       if (launchAnchor && entity.billboard) {
-        setGraphicVisibility(
-          entity.billboard,
-          horizonVisible && id === layerState._hoveredRosterLaunchId,
-          time,
-        );
+        // Rocket marker shown whenever the anchor is on the horizon; hovering
+        // the roster swaps it for the reticle (owner request: rocket images).
+        setGraphicVisibility(entity.billboard, horizonVisible, time);
+        const hovered = id === layerState._hoveredRosterLaunchId;
+        if (entity._gevRocketHover !== hovered) {
+          entity._gevRocketHover = hovered;
+          entity.billboard.image = hovered
+            ? parts.overlays.missionHoverReticleImage()
+            : vehicleIcon('rocket');
+          entity.billboard.width = hovered ? 24 : 22;
+          entity.billboard.height = hovered ? 24 : 22;
+        }
       }
     }
   }
@@ -120,10 +128,11 @@ export function createRendering({
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
       billboard: {
-        image: parts.overlays.missionHoverReticleImage(),
-        width: 24,
-        height: 24,
-        show: false,
+        image: vehicleIcon('rocket'),
+        color: parts.model.missionMarkerColor(launch),
+        width: 22,
+        height: 22,
+        show: true,
         horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
         verticalOrigin: Cesium.VerticalOrigin.CENTER,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,

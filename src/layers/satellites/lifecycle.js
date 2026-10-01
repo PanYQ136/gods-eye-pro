@@ -54,7 +54,8 @@ export function createLifecycle({
       layerState._renderCapIssAllowed = true;
 
       // Point primitives for satellite dots
-      layerState._pointCollection = new Cesium.PointPrimitiveCollection();
+      // Satellite markers are shape-icon billboards, not dots (owner request).
+      layerState._pointCollection = new Cesium.BillboardCollection();
       viewer.scene.primitives.add(layerState._pointCollection);
 
       parts.interaction._installClickHandler(viewer);
