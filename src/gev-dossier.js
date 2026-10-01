@@ -380,6 +380,63 @@
     return null;
   }
 
+  // ── 真实船照：按船名查 Wikimedia Commons（免费、CC 授权，前端直连）──────
+  const _vesselPhotoCache = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('gev-dossier-vphoto2')) || {};
+    } catch {
+      return {};
+    }
+  })();
+  const _vesselPhotoPending = new Map();
+  const VESSEL_BAD = /logo|flag|icon|map|chart|coat|emblem|seal|diagram|stem|cell|portrait|gauge|coin/i;
+  function fetchVesselCommons(name) {
+    if (name in _vesselPhotoCache) return Promise.resolve(_vesselPhotoCache[name]);
+    if (_vesselPhotoPending.has(name)) return _vesselPhotoPending.get(name);
+    const url =
+      'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
+      '&generator=search&gsrsearch=' +
+      encodeURIComponent(name + ' ship') +
+      '&gsrlimit=6&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420';
+    const p = fetch(url, { credentials: 'omit' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const pages = Object.values((d && d.query && d.query.pages) || {});
+        let out = null;
+        for (const pg of pages) {
+          const ii = (pg.imageinfo || [])[0];
+          const src = ii && ii.thumburl;
+          if (!src) continue;
+          if (!/\.(jpg|jpeg)$/.test(src.split('?')[0].toLowerCase())) continue;
+          if (VESSEL_BAD.test(pg.title || '')) continue;
+          const md = ii.extmetadata || {};
+          const lic = (md.LicenseShortName || {}).value || '';
+          const author = String((md.Artist || {}).value || '')
+            .replace(/<[^>]+>/g, '')
+            .trim()
+            .slice(0, 40);
+          out = {
+            src,
+            link: ii.descriptionshorturl || ii.descriptionurl || null,
+            credit: [author, lic, 'Wikimedia'].filter(Boolean).join(' · '),
+          };
+          break;
+        }
+        _vesselPhotoCache[name] = out;
+        try {
+          sessionStorage.setItem(
+            'gev-dossier-vphoto2',
+            JSON.stringify(_vesselPhotoCache),
+          );
+        } catch {}
+        return out;
+      })
+      .catch(() => null)
+      .finally(() => _vesselPhotoPending.delete(name));
+    _vesselPhotoPending.set(name, p);
+    return p;
+  }
+
   function paintPhoto(box, src, link, captionLines) {
     if (!src) {
       box.style.display = 'none';
@@ -406,15 +463,33 @@
   function renderPhoto(t) {
     const box = state.els.photo;
     if (!box) return;
-    // Vessel: bundled, type-matched, license-clean ship photo.
+    // Vessel: real per-vessel photo from Wikimedia Commons (free, by name);
+    // falls back to the bundled type-matched ship photo.
     if (t && t.vesselType) {
       const vp = vesselPhotoFor(t.vesselType);
-      paintPhoto(
-        box,
-        vp ? vp.src : null,
-        vp ? vp.link : null,
-        [t.specs && t.specs.vesselType, vp && vp.credit],
-      );
+      const generic = vp
+        ? {
+            src: vp.src,
+            link: vp.link,
+            lines: [t.specs && t.specs.vesselType, vp.credit],
+          }
+        : { src: null, link: null, lines: [t.specs && t.specs.vesselType] };
+      const name = String(t.title || '').trim();
+      if (!name) {
+        paintPhoto(box, generic.src, generic.link, generic.lines);
+        return;
+      }
+      fetchVesselCommons(name).then((real) => {
+        if (state.target !== t) return;
+        if (real && real.src) {
+          paintPhoto(box, real.src, real.link, [
+            t.specs && t.specs.vesselType,
+            real.credit,
+          ]);
+        } else {
+          paintPhoto(box, generic.src, generic.link, generic.lines);
+        }
+      });
       return;
     }
     // Aircraft: real photo by ICAO24 (planespotters).
