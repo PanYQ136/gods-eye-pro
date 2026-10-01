@@ -82,6 +82,13 @@ const ADSBLOL_POINT_CACHE_MS = 12000;
 const ADSBLOL_POINT_CACHE_MAX = 80;
 const ADSBLOL_POINT_RADIUS_NM = 250;
 const ADSBLOL_POINT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+// Global full-feed pull: one huge radius from a fixed centre reaches every
+// aircraft adsb.lol serves (~6k), live. Cached a little longer than the
+// regional query to respect their rate limits (large queries 429 quickly).
+const ADSB_GLOBAL_CENTER_LAT = 30;
+const ADSB_GLOBAL_CENTER_LON = 110;
+const ADSB_GLOBAL_RADIUS_NM = 40000;
+const ADSB_GLOBAL_CACHE_MS = 20000;
 // A 200 response can still contain an old OpenSky snapshot. Past this point
 // the viewport-scoped adsb.lol source is more honest and keeps local motion
 // current instead of coasting a stale worldwide frame indefinitely.
@@ -237,13 +244,33 @@ function buildOpenSkyHeaders({
 
 export function adsbLolFallbackAnchor(req) {
   const incoming = new URL(req?.url || '', 'http://localhost');
+  // Global full-feed mode: the client asks for the whole live world (all of
+  // adsb.lol) so the render-count slider can page through every flight rather
+  // than the viewport deciding. A huge radius from a fixed centre covers the
+  // globe (verified ~6k aircraft from any centre).
+  if (
+    incoming.searchParams.get('all') === '1' ||
+    incoming.searchParams.get('scope') === 'global'
+  ) {
+    return {
+      latitude: ADSB_GLOBAL_CENTER_LAT,
+      longitude: ADSB_GLOBAL_CENTER_LON,
+      radiusNm: ADSB_GLOBAL_RADIUS_NM,
+      global: true,
+    };
+  }
   const latitude = requiredFiniteQueryNumber(incoming.searchParams, 'lat');
   const longitude = requiredFiniteQueryNumber(incoming.searchParams, 'lon');
   if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)
     return null;
   if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)
     return null;
-  return { latitude, longitude };
+  return {
+    latitude,
+    longitude,
+    radiusNm: ADSBLOL_POINT_RADIUS_NM,
+    global: false,
+  };
 }
 
 async function fetchAdsbLolPointFallback(req) {
@@ -251,10 +278,11 @@ async function fetchAdsbLolPointFallback(req) {
   if (!anchor) return null;
   const roundedLat = Math.round(anchor.latitude * 4) / 4;
   const roundedLon = Math.round(anchor.longitude * 4) / 4;
-  const cacheKey = `${roundedLat.toFixed(2)},${roundedLon.toFixed(2)}`;
+  const cacheKey = `${roundedLat.toFixed(2)},${roundedLon.toFixed(2)},${anchor.radiusNm}`;
+  const ttlMs = anchor.global ? ADSB_GLOBAL_CACHE_MS : ADSBLOL_POINT_CACHE_MS;
   const cached = _adsbLolPointCache.get(cacheKey);
   const now = Date.now();
-  if (cached && now - cached.cachedAt < ADSBLOL_POINT_CACHE_MS) {
+  if (cached && now - cached.cachedAt < ttlMs) {
     return { ...cached, cacheStatus: 'HIT' };
   }
 
@@ -263,10 +291,13 @@ async function fetchAdsbLolPointFallback(req) {
     cacheKey,
     async () => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        anchor.global ? 25000 : 10000,
+      );
       try {
         const upstream = await fetch(
-          `https://api.adsb.lol/v2/lat/${roundedLat}/lon/${roundedLon}/dist/${ADSBLOL_POINT_RADIUS_NM}`,
+          `https://api.adsb.lol/v2/lat/${roundedLat}/lon/${roundedLon}/dist/${anchor.radiusNm}`,
           {
             headers: {
               Accept: 'application/json',
@@ -311,18 +342,21 @@ async function fetchAdsbLolPointFallback(req) {
 async function serveAdsbLolPointFallback(req, res, requestedMode, reason) {
   const fallback = await fetchAdsbLolPointFallback(req);
   if (!fallback) return false;
+  const anchor = adsbLolFallbackAnchor(req);
+  const global = Boolean(anchor?.global);
+  const primary = /primary/.test(String(reason));
+  const scopeLabel = global ? 'global' : `${ADSBLOL_POINT_RADIUS_NM}nm regional`;
   res.writeHead(200, {
     ...buildOpenSkyHeaders({
       cacheStatus: fallback.cacheStatus,
       requestedMode,
-      usedMode: 'adsblol-regional',
-      reason,
+      usedMode: global ? 'adsblol-global' : 'adsblol-regional',
+      reason: global && primary ? 'live_adsblol_global_primary' : reason,
     }),
     'X-Flight-Source': 'adsb.lol',
-    'X-Flight-Coverage':
-      String(reason).includes('primary')
-        ? `${ADSBLOL_POINT_RADIUS_NM}nm regional live`
-        : `${ADSBLOL_POINT_RADIUS_NM}nm regional fallback`,
+    'X-Flight-Coverage': primary
+      ? `${scopeLabel} live (all adsb.lol)`
+      : `${scopeLabel} fallback`,
     'X-Flight-Count': String(fallback.count),
   });
   res.end(fallback.body);

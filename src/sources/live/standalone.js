@@ -58,6 +58,9 @@ export function createOpenSkySource({
     label: 'OpenSky Network',
     async getSnapshot(query = {}, { signal } = {}) {
       const params = new URLSearchParams();
+      // Full live world: the server serves all of adsb.lol; the client's
+      // render-count slider caps what is drawn.
+      if (query.all) params.set('all', '1');
       if (Number.isFinite(query.latitude) && Number.isFinite(query.longitude)) {
         params.set('lat', query.latitude.toFixed(4));
         params.set('lon', query.longitude.toFixed(4));

@@ -29,7 +29,7 @@
   ];
   const STORE_KEY = 'gev.layerLimit.'; // + layerId
   const MIN = 0;
-  const MAX = 999;
+  const MAX = 8000;
 
   const STYLE = `
   .gev-limit{
@@ -154,7 +154,7 @@
     range.min = String(MIN);
     range.max = String(MAX);
     range.value = String(initial);
-    range.setAttribute('aria-label', cfg.label + ' 渲染上限（0–999）');
+    range.setAttribute('aria-label', cfg.label + ' 渲染上限（0–8000）');
 
     const num = document.createElement('input');
     num.type = 'number';
