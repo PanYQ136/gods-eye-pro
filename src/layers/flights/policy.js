@@ -98,11 +98,15 @@ export const MODEL_ALL_KEEP_M = 450000;
  *  camera; create one only within the smaller FLEET_ADD_M (KEEP > ADD gives
  *  add/remove hysteresis, no flicker at the edge). Far contacts shed their
  *  billboard + cached state and re-join cleanly when the camera pans back. */
-export const FLEET_ADD_M = 400000;
-// create a contact billboard within 400 km of the camera
+export const FLEET_ADD_M = 20000000;
+// create a contact billboard anywhere on the globe
+// Owner request 2026-10-01: show the WHOLE loaded fleet (all adsb.lol flights /
+// military) and let the render-count slider — not a 400 km camera radius —
+// decide how many are drawn. Set globe-spanning so no contact is culled by
+// distance; the nearest-N render cap (renderLimit) still bounds the collection.
 
-export const FLEET_KEEP_M = 480000;
-// keep a contact billboard within 480 km of the camera
+export const FLEET_KEEP_M = 20500000;
+// keep a contact billboard anywhere on the globe (hysteresis above FLEET_ADD_M)
 
 export const MODEL_HEADING_OFFSET_DEG = 180;
 // airplane.glb nose is opposite Cesium heading-0

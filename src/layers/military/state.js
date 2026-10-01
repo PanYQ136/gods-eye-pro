@@ -66,7 +66,9 @@ export function createFlightState({ source, services }) {
   flightState._models3dMode = 'proximity';
 
   /** 操作员渲染上限 (0–999)：只保留离相机最近的 N 架（999 ≈ 不限）。见 flights/state.js。 */
-  flightState._renderLimit = 25;
+  // Military is a small set (~100): render it all by default; the render-count
+  // slider can still lower it.
+  flightState._renderLimit = 999;
   // 'proximity' = nearest MODEL_MAX in view; 'all' = every in-view plane (≤ MODEL_MAX_ALL)
 
   flightState._lastModelCapWarnMs = 0;
