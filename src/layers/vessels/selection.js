@@ -129,6 +129,8 @@ export function createSelection({
       kind: 'vessel',
       id: record.mmsi,
       label: record.name || record.mmsi,
+      // AIS vessel type → the dossier resolves a bundled, type-matched photo.
+      vesselType: record.type || null,
       position:
         components.rendering.getVisual(record).billboard?.position ||
         components.rendering.getVisual(record).position,

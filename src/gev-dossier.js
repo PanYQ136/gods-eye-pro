@@ -362,9 +362,62 @@
     photoPending.set(hex, p);
     return p;
   }
+  // ── 船型实拍图（内置，CC 授权，来自 Wikimedia Commons）──────────────────
+  const VESSEL_PHOTO_CLASSES = [
+    { slug: 'container', re: /container/i, credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia' },
+    { slug: 'tanker', re: /tanker|oil|chemical|gas|lng|lpg/i, credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia' },
+    { slug: 'bulk', re: /bulk/i, credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia' },
+    { slug: 'cruise', re: /passenger|cruise|ferry/i, credit: '© Virtual-Pano / CC BY-SA 4.0 · Wikimedia' },
+    { slug: 'fishing', re: /fish/i, credit: '© Wikimedia Commons / CC BY-SA 4.0' },
+    { slug: 'tug', re: /tug|tow|pilot|dredg|law|military|search|patrol/i, credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia' },
+    { slug: 'cargo', re: /cargo|freight|general/i, credit: '© Agnes Monkelbaan / CC BY-SA 4.0 · Wikimedia' },
+  ];
+  function vesselPhotoFor(type) {
+    const t = String(type || '');
+    if (!t) return null;
+    for (const c of VESSEL_PHOTO_CLASSES)
+      if (c.re.test(t)) return { src: '/vessel-photos/' + c.slug + '.jpg', credit: c.credit };
+    return null;
+  }
+
+  function paintPhoto(box, src, link, captionLines) {
+    if (!src) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    const img =
+      '<img class="gd-photo-img" src="' +
+      esc(src) +
+      '" alt="photo" loading="lazy" referrerpolicy="no-referrer">';
+    box.style.display = '';
+    box.innerHTML =
+      (link
+        ? '<a class="gd-photo-link" href="' +
+          esc(link) +
+          '" target="_blank" rel="noopener">' +
+          img +
+          '</a>'
+        : img) +
+      '<div class="gd-photo-cap">' +
+      esc(captionLines.filter(Boolean).join(' · ')) +
+      '</div>';
+  }
   function renderPhoto(t) {
     const box = state.els.photo;
     if (!box) return;
+    // Vessel: bundled, type-matched, license-clean ship photo.
+    if (t && t.vesselType) {
+      const vp = vesselPhotoFor(t.vesselType);
+      paintPhoto(
+        box,
+        vp ? vp.src : null,
+        vp ? vp.link : null,
+        [t.specs && t.specs.vesselType, vp && vp.credit],
+      );
+      return;
+    }
+    // Aircraft: real photo by ICAO24 (planespotters).
     const hex = String((t && t.hex) || '').toLowerCase();
     if (!/^[0-9a-f]{6}$/.test(hex)) {
       box.style.display = 'none';
@@ -383,18 +436,7 @@
         cap.push(String(t.specs.type || t.specs.operator));
       if (ph.photographer) cap.push('摄影 ' + ph.photographer);
       cap.push('planespotters.net');
-      box.style.display = '';
-      box.innerHTML =
-        '<a class="gd-photo-link" href="' +
-        esc(ph.link || '#') +
-        '" target="_blank" rel="noopener">' +
-        '<img class="gd-photo-img" src="' +
-        esc(ph.thumb || ph.large) +
-        '" alt="aircraft photo" loading="lazy" referrerpolicy="no-referrer">' +
-        '</a>' +
-        '<div class="gd-photo-cap">' +
-        esc(cap.join(' · ')) +
-        '</div>';
+      paintPhoto(box, ph.thumb || ph.large, ph.link || null, cap);
     });
   }
 
@@ -705,7 +747,8 @@
       title: String(d.label || d.id || kindCn),
       ident: kindCn,
       accent: d.kind === 'fire' ? '#ff7a3c' : '#39d0ff',
-      specs: { vesselType: kindCn },
+      specs: { vesselType: d.vesselType || kindCn },
+      vesselType: d.kind === 'vessel' ? d.vesselType || null : null,
       details: [],
       source: '点击锁定（位置为锁定时刻）',
     };
