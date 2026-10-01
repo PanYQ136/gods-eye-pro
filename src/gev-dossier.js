@@ -389,26 +389,37 @@
     }
   })();
   const _vesselPhotoPending = new Map();
-  const VESSEL_BAD = /logo|flag|icon|map|chart|coat|emblem|seal|diagram|stem|cell|portrait|gauge|coin/i;
+  const VESSEL_BAD = /logo|flag|icon|map|chart|coat|emblem|seal|diagram|stem|cell|portrait|gauge|coin|book|novel|album|song|stamp|poster|painting|engraving|lithograph|manuscript|cover|postcard|banknote|document|scan|title[_ ]?page/i;
   function fetchVesselCommons(name) {
     if (name in _vesselPhotoCache) return Promise.resolve(_vesselPhotoCache[name]);
     if (_vesselPhotoPending.has(name)) return _vesselPhotoPending.get(name);
+    const tokens = String(name)
+      .toUpperCase()
+      .split(/\s+/)
+      .filter((x) => x.length >= 3);
     const url =
       'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*' +
       '&generator=search&gsrsearch=' +
-      encodeURIComponent(name + ' ship') +
-      '&gsrlimit=6&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420';
+      encodeURIComponent(name + ' filetype:bitmap') +
+      '&gsrlimit=10&gsrnamespace=6&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420';
     const p = fetch(url, { credentials: 'omit' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const pages = Object.values((d && d.query && d.query.pages) || {});
         let out = null;
         for (const pg of pages) {
+          // Require the vessel name (every significant token) to appear in the
+          // file title — a full-text hit for an unrelated scan (a book cover,
+          // a stamp, ...) must never pass as this ship's photo.
+          const title = String(pg.title || '');
+          const titleU = title.toUpperCase();
+          if (!tokens.length) continue;
+          if (!tokens.every((tk) => titleU.indexOf(tk) >= 0)) continue;
+          if (VESSEL_BAD.test(title)) continue;
           const ii = (pg.imageinfo || [])[0];
           const src = ii && ii.thumburl;
           if (!src) continue;
           if (!/\.(jpg|jpeg)$/.test(src.split('?')[0].toLowerCase())) continue;
-          if (VESSEL_BAD.test(pg.title || '')) continue;
           const md = ii.extmetadata || {};
           const lic = (md.LicenseShortName || {}).value || '';
           const author = String((md.Artist || {}).value || '')
