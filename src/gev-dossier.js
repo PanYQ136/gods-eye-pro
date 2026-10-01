@@ -86,6 +86,12 @@
   #gev-dossier .gd-foot{ margin-top:6px; padding-top:5px; border-top:1px solid rgba(57,208,255,.14);
     font-size:9.5px; color:rgba(140,180,200,.6); display:flex; justify-content:space-between; }
   #gev-dossier.gd-collapsed .gd-body{ display:none; }
+  #gev-dossier .gd-photo{ margin:6px 0 2px; }
+  #gev-dossier .gd-photo-link{ display:block; }
+  #gev-dossier .gd-photo-img{ display:block; width:100%; height:auto; border-radius:6px;
+    border:1px solid rgba(57,208,255,.28); background:rgba(0,0,0,.25); }
+  #gev-dossier .gd-photo-cap{ font-size:9px; color:rgba(140,180,200,.7); margin-top:3px;
+    text-align:right; }
   `;
 
   function ensureStyle() {
@@ -163,6 +169,7 @@
       '<div class="gd-body">' +
       '<div class="gd-tag">目标档案 · TARGET DOSSIER</div>' +
       '<div class="gd-ident" data-r="ident"></div>' +
+      '<div class="gd-photo" data-r="photo" style="display:none"></div>' +
       '<table data-r="specs"></table>' +
       '<div class="gd-tag">实时位置 · LIVE POSITION</div>' +
       '<table class="gd-live"><tbody>' +
@@ -179,6 +186,7 @@
       title: el.querySelector('.gd-title'),
       badge: el.querySelector('.gd-badge'),
       ident: q('ident'),
+      photo: q('photo'),
       specs: q('specs'),
       ll: q('ll'),
       alt: q('alt'),
@@ -280,6 +288,7 @@
     state.els.badge.textContent = stale ? 'STALE' : 'LIVE';
     state.els.badge.className = 'gd-badge ' + (stale ? 'stale' : 'live');
     state.els.src.textContent = t.source || '实时数据';
+    renderPhoto(t);
   }
 
   // ── 外部补充：航司 / 航线 / 起降机场 / 预计到达（独立于主应用，整段可删）──
@@ -321,6 +330,82 @@
     routePending.set(cs, p);
     return p;
   }
+  // ── 真实飞机照片（按 ICAO24 匹配，航司/机型都与已跟踪航班一致）──────────
+  const PHOTO_KEY = 'gev-dossier-photos';
+  const photoCache = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(PHOTO_KEY)) || {};
+    } catch {
+      return {};
+    }
+  })();
+  const photoPending = new Map();
+  function persistPhotos() {
+    try {
+      sessionStorage.setItem(PHOTO_KEY, JSON.stringify(photoCache));
+    } catch {}
+  }
+  function fetchPhoto(hex) {
+    if (!hex) return Promise.resolve(null);
+    if (hex in photoCache) return Promise.resolve(photoCache[hex]);
+    if (photoPending.has(hex)) return photoPending.get(hex);
+    const p = fetch('/api/aircraft-photo?hex=' + encodeURIComponent(hex))
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const v = d && d.found ? d : null;
+        photoCache[hex] = v;
+        if (v) persistPhotos();
+        return v;
+      })
+      .catch(() => null)
+      .finally(() => photoPending.delete(hex));
+    photoPending.set(hex, p);
+    return p;
+  }
+  function renderPhoto(t) {
+    const box = state.els.photo;
+    if (!box) return;
+    const hex = String((t && t.hex) || '').toLowerCase();
+    if (!/^[0-9a-f]{6}$/.test(hex)) {
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    fetchPhoto(hex).then((ph) => {
+      if (state.target !== t) return;
+      if (!ph || !(ph.thumb || ph.large)) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+      }
+      const cap = [];
+      if (t.specs && (t.specs.type || t.specs.operator))
+        cap.push(String(t.specs.type || t.specs.operator));
+      if (ph.photographer) cap.push('摄影 ' + ph.photographer);
+      cap.push('planespotters.net');
+      box.style.display = '';
+      box.innerHTML =
+        '<a class="gd-photo-link" href="' +
+        esc(ph.link || '#') +
+        '" target="_blank" rel="noopener">' +
+        '<img class="gd-photo-img" src="' +
+        esc(ph.thumb || ph.large) +
+        '" alt="aircraft photo" loading="lazy" referrerpolicy="no-referrer">' +
+        '</a>' +
+        '<div class="gd-photo-cap">' +
+        esc(cap.join(' · ')) +
+        '</div>';
+    });
+  }
+
+  function pickHex(list) {
+    for (const v of list) {
+      const s = String(v || '').trim().toLowerCase();
+      if (/^[0-9a-f]{6}$/.test(s)) return s;
+    }
+    return null;
+  }
+
   function airportLabel(a) {
     if (!a) return '';
     const code = String(a.code || '').trim();
@@ -529,6 +614,10 @@
           ? /stale/i.test(model.specs.status)
           : /STALE/.test((model.details || []).join(' ')),
       source: (model.specs && model.specs.source) || '实时数据 · 相机跟踪',
+      // ICAO24 hex for the planespotters photo lookup (airline/type matched by
+      // airframe). The Cesium entity id is a UUID, so prefer the matched live
+      // record's id (that IS the hex) and fall back to an explicit icao24 field.
+      hex: pickHex([rec && rec.id, model.specs && model.specs.icao24, icao]),
       dest:
         ti &&
         ti.route &&

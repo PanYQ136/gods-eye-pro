@@ -16,6 +16,7 @@ import { gbfsProxy } from './gbfs.js';
 import { localReceiversProxy } from './local-receivers.js';
 import { transitProxy } from './transit.js';
 import { adsbLolProxy } from './aircraft/adsb-lol.js';
+import { aircraftPhotoProxy } from './aircraft/photo.js';
 import { aisLiveProxy } from './vessels/ais-live.js';
 import { trackBackfillProxies } from './aircraft/tracks.js';
 import { openAiRealtimeProxy } from './openai.js';
@@ -36,6 +37,7 @@ function localProviderPlugins() {
     rocketLaunchesProxy(),
     terrainHeightsProxy(),
     adsbdbProxy(),
+    aircraftPhotoProxy(),
     overpassProxy(),
     militaryInstallationsProxy(),
     regionalBriefProxy(),
