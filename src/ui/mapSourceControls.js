@@ -1,4 +1,5 @@
 import { renderMapStackChips, syncMapStackChips } from '../mapStackChips.js';
+import { rememberManualMapStack } from '../maps/regionDetect.js';
 
 /**
  * Own Map Source presentation and selection without constructing map providers.
@@ -35,7 +36,11 @@ export function createMapSourceControls({
   async function select(stackId, { syncShare = true } = {}) {
     if (destroyed) return null;
     const current = ++generation;
-    if (syncShare) claimSelection();
+    if (syncShare) {
+      claimSelection();
+      // A user-initiated chip click overrides network auto-detection on reload.
+      rememberManualMapStack(stackId);
+    }
     const before = controller.getActiveId();
     render(controller.getState('switching'));
     let state;

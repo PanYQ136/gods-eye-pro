@@ -7,6 +7,7 @@ import {
 import { registerDataCredits } from '../data/dataCredits.js';
 import { configureCreditKeyboardAccess } from '../creditKeyboard.js';
 import { MapStackController } from '../mapStackController.js';
+import { resolveInitialStackId } from '../maps/regionDetect.js';
 import { loadPhotorealisticTileset } from '../mapStartup.js';
 import { initLogoGaze } from '../logoGaze.js';
 import {
@@ -95,12 +96,19 @@ export async function createApplicationScene({
 
   loaderStatus.textContent = 'Initializing systems...';
 
+  // Network-aware default base map: a browser that cannot reach Google's hosts
+  // (mainland CN) gets the reachable AMap (高德) satellite; a browser that can
+  // gets the Google stack. A remembered manual chip choice wins over detection.
+  const initialStackId = await resolveInitialStackId({
+    hasGoogle3d: Boolean(tileset),
+  });
+
   const mapStackController = new MapController(viewer, {
     requestRender: governorRequestRender,
     ...mapOptions,
     googleTileset: tileset,
     cesiumToken,
-    initialStack: tileset ? 'photoreal' : 'amap-satellite',
+    initialStack: initialStackId,
     // Task 5 (height-datum fix): rebroadcast stack changes as a window
     // CustomEvent so data layers (CCTV per-regime ground resolution) can
     // react without coupling MapStackController to layer modules. Fires on
@@ -114,7 +122,7 @@ export async function createApplicationScene({
     onError: (message) => console.warn('[MapStack]', message),
   });
   defer(() => mapStackController.destroy());
-  await mapStackController.setStack(tileset ? 'photoreal' : 'amap-satellite', {
+  await mapStackController.setStack(initialStackId, {
     silent: true,
   });
 

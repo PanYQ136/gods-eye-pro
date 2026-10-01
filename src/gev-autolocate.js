@@ -293,7 +293,9 @@ import {
       lat: target.lat,
       h: END_HEIGHT,
       heading: Cesium.Math.toRadians(15),
-      pitch: Cesium.Math.toRadians(-30),
+      // Land straight-down (nadir) so the view opens flat, not tilted, and the
+      // camera-tilt toggle reads OFF by default (owner request 2026-10-01).
+      pitch: Cesium.Math.toRadians(-89),
     };
 
     let done = false;

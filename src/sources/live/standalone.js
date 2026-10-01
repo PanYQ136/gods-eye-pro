@@ -69,12 +69,22 @@ export function createOpenSkySource({
         'OpenSky',
       );
       if (!response.ok) throw openSkyError(response);
+      const reason = String(
+        header(response, 'x-opensky-auth-reason') || '',
+      ).toLowerCase();
+      // The server names its route: a live-primary pull is the intended source,
+      // not a degradation. Only genuine fallback reasons mark the feed so.
+      const isPrimary = /primary/.test(reason);
+      const fallback =
+        !isPrimary &&
+        /(fallback|cooldown|circuit|stale|rate_limit)/.test(reason);
       return {
         ...openSkySnapshot(payload, {
           source: header(response, 'x-flight-source') || 'OpenSky Network',
           coverage:
             header(response, 'x-flight-coverage') ||
             'worldwide upstream snapshot',
+          fallback,
           now: now(),
         }),
         status: response.status,

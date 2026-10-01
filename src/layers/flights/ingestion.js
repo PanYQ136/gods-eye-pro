@@ -49,6 +49,7 @@ export function createIngestion({
           : null;
         feed._lastSource = snapshot.source;
         feed._lastCoverage = snapshot.coverage;
+        feed._lastFallback = snapshot.fallback === true;
         setSourceLabel(feed._lastSource);
         const accepted = applySnapshot(snapshot, viewer);
         feed._count = accepted.count;
@@ -111,6 +112,7 @@ export function createFlightFeed(source) {
   feed._lastStatus = null;
   feed._lastSource = source?.label || 'Aircraft';
   feed._lastCoverage = 'worldwide upstream snapshot';
+  feed._lastFallback = false;
   feed._trackingRefreshEpoch = 0;
   feed._lastTrackingRefreshOutcome = {
     epoch: 0,

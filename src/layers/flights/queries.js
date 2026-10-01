@@ -946,6 +946,9 @@ export function createQueries({
         retryInSec,
         source: flightState.feed._lastSource,
         coverage: flightState.feed._lastCoverage,
+        // Explicit live-vs-fallback flag so the chip does not infer FALLBACK
+        // from the adsb.lol source label (it is the intended live source).
+        fallback: flightState.feed._lastFallback === true,
       };
     },
   };
