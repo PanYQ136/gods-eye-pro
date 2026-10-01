@@ -320,6 +320,11 @@ export function createModel({ state: layerState, services, parts, source }) {
       }
       // Late flow can move a dot between buckets — keep the preset halo in
       // step (no-op writes under the normal profile, whose dots have none).
+      // Billboard marker (car icon): mirror the computed dot size onto width/height.
+      if (Number.isFinite(dot.point.pixelSize)) {
+        dot.point.width = dot.point.pixelSize * 1.7;
+        dot.point.height = dot.point.pixelSize * 1.7;
+      }
       if (parts.style.presetProfileActive())
         parts.style.applyOutline(dot.point, bucket);
       dot.mps = dot.baseMps * (flow ? flowSpeedScale(flow.level) : 1);

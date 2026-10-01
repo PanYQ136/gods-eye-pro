@@ -24,7 +24,8 @@ export function createLifecycle({
      */
     init(viewer) {
       layerState._viewer = viewer;
-      layerState._pointCollection = new Cesium.PointPrimitiveCollection({
+      // Car-shape icon markers (owner request), not dots.
+      layerState._pointCollection = new Cesium.BillboardCollection({
         blendOption: Cesium.BlendOption.TRANSLUCENT,
       });
       // Add permanently — toggle with .show to avoid destroy-on-remove errors

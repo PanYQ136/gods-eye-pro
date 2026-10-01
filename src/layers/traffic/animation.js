@@ -1,4 +1,5 @@
 import { flowBucket, flowSpeedScale } from '../../data/trafficFlowStyle.js';
+import { vehicleIcon } from '../../data/vehicleIcons.js';
 import { presetDotOutline } from '../../data/trafficPresetStyle.js';
 import * as Cesium from 'cesium';
 import { queuePlatoons, locateAlongRoad } from '../../data/trafficQueue.js';
@@ -138,7 +139,10 @@ export function createAnimation({
       const jamProminent = bucket === 'jam' && parts.style.jamDensityOn();
       const point = layerState._pointCollection.add({
         position: Cesium.Cartesian3.clone(layerState._scratchLerp),
-        pixelSize,
+        // Car-shape marker (owner request); the congestion colour still tints it.
+        image: vehicleIcon('car'),
+        width: pixelSize * 1.7,
+        height: pixelSize * 1.7,
         // No flow data → today's exact simulated white.
         color: flowColor || Cesium.Color.WHITE.withAlpha(0.85),
         scaleByDistance: new Cesium.NearFarScalar(
