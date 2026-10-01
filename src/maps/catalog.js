@@ -31,6 +31,22 @@ export const MAP_STACKS = [
     requiresIon: false,
   },
   {
+    id: 'amap-satellite',
+    label: '高德卫星 (AMap)',
+    shortLabel: '高德',
+    kind: 'amap-satellite',
+    style: 6,
+    requiresIon: false,
+  },
+  {
+    id: 'amap-hybrid',
+    label: '高德影像+路网',
+    shortLabel: '高德+',
+    kind: 'amap-hybrid',
+    style: 8,
+    requiresIon: false,
+  },
+  {
     id: 'osm',
     label: 'OSM',
     shortLabel: 'OSM',

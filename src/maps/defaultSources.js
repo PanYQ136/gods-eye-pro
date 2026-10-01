@@ -5,7 +5,9 @@ import {
   createOsmImagery,
   createEsriImagery,
   createIonImagery,
+  createAmapImagery,
   ESRI_ATTRIBUTION_HTML,
+  AMAP_ATTRIBUTION_HTML,
 } from './imagery.js';
 import { createWorldTerrain, createKeylessTerrain } from './terrain.js';
 
@@ -25,7 +27,7 @@ export function createDefaultMapSources({
       : createKeylessTerrain,
   };
   return {
-    defaultId: googleTileset ? 'photoreal' : 'esri-imagery',
+    defaultId: googleTileset ? 'photoreal' : 'amap-satellite',
     unknownId: 'photoreal',
     recoveryId: googleTileset ? 'photoreal' : null,
     state: { hasCesiumIonToken: hasIon },
@@ -47,9 +49,13 @@ export function createDefaultMapSources({
       const imagery =
         descriptor.kind === 'ion'
           ? () => createIonImagery(descriptor.style, ionToken)
-          : descriptor.id === 'osm'
-            ? createOsmImagery
-            : createEsriImagery;
+          : descriptor.kind === 'amap-satellite'
+            ? () => createAmapImagery({ style: 6 })
+            : descriptor.kind === 'amap-hybrid'
+              ? () => createAmapImagery({ style: 8 })
+              : descriptor.id === 'osm'
+                ? createOsmImagery
+                : createEsriImagery;
       return {
         ...common,
         imagery,
@@ -57,17 +63,30 @@ export function createDefaultMapSources({
         ...(descriptor.id === 'esri-imagery'
           ? {
               credit: ESRI_ATTRIBUTION_HTML,
+              // China route: Esri's ArcGIS tiles are frequently blocked/slow
+              // from mainland CN, so fall back to the reachable AMap satellite.
               constructionFallback: {
-                id: 'osm',
-                message: 'Esri Satellite is unavailable; using OSM',
+                id: 'amap-satellite',
+                message: 'Esri Satellite is unavailable; using AMap (高德)',
               },
               tileFailureFallback: {
-                id: 'osm',
+                id: 'amap-satellite',
                 threshold: 2,
-                message: 'Esri Satellite tile requests failed; using OSM',
+                message: 'Esri Satellite tile requests failed; using AMap (高德)',
               },
             }
-          : {}),
+          : descriptor.id === 'amap-satellite' ||
+              descriptor.id === 'amap-hybrid'
+            ? {
+                credit: AMAP_ATTRIBUTION_HTML,
+                // Last resort if the AMap tiles ever fail.
+                tileFailureFallback: {
+                  id: 'osm',
+                  threshold: 3,
+                  message: 'AMap tile requests failed; using OSM',
+                },
+              }
+            : {}),
       };
     }),
   };
