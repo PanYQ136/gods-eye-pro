@@ -64,6 +64,51 @@ export function trackBackfillProxies() {
     res.end(body);
   }
 
+  /**
+   * Convert an adsb.lol tar1090 trace into the OpenSky /tracks/ response shape
+   * ({icao24,callsign,startTime,endTime,path}) so the client renderer is
+   * source-agnostic. Trace points are [offsetSec, lat, lon, altFt|'ground',
+   * gsKt, trackDeg, ...]; alt is converted ft→m and offset→absolute epoch sec
+   * anchored to payload.timestamp (the trace end).
+   */
+  function convertAdsbLolTrace(payload) {
+    const trace = Array.isArray(payload?.trace) ? payload.trace : [];
+    const endEpoch = Number(payload?.timestamp) || Date.now() / 1000;
+    const maxOffset = trace.length
+      ? Number(trace[trace.length - 1][0]) || 0
+      : 0;
+    const path = [];
+    for (const point of trace) {
+      const lat = Number(point?.[1]);
+      const lon = Number(point?.[2]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const offset = Number(point?.[0]) || 0;
+      const altRaw = point?.[3];
+      const onGround = altRaw === 'ground';
+      const altFt = Number(altRaw);
+      const baroAltM =
+        onGround || !Number.isFinite(altFt) ? 0 : altFt * 0.3048;
+      const track = Number(point?.[5]);
+      path.push([
+        Math.round(endEpoch - (maxOffset - offset)),
+        lat,
+        lon,
+        baroAltM,
+        Number.isFinite(track) ? track : 0,
+        onGround,
+      ]);
+    }
+    const startTime = path.length ? path[0][0] : Math.floor(endEpoch);
+    const endTime = path.length ? path[path.length - 1][0] : Math.floor(endEpoch);
+    return {
+      icao24: String(payload?.icao || '').toLowerCase(),
+      callsign: (payload?.r || '').toString().trim() || null,
+      startTime,
+      endTime,
+      path,
+    };
+  }
+
   function install(middlewares) {
     middlewares.use('/api/opensky-track', async (req, res) => {
       try {
@@ -79,13 +124,76 @@ export function trackBackfillProxies() {
           );
           return;
         }
-        const token = await getOpenSkyToken();
-        await proxyJson(
-          res,
-          `osky:${icao24}`,
-          `https://opensky-network.org/api/tracks/all?icao24=${icao24}&time=0`,
-          token ? { Authorization: `Bearer ${token}` } : {},
-        );
+        const cacheKey = `trk:${icao24}`;
+        const cached = cache.get(cacheKey);
+        if (cached && Date.now() - cached.at < TRACK_CACHE_MS) {
+          res.statusCode = cached.status;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(cached.body);
+          return;
+        }
+        const send = (status, body, source) => {
+          cachePut(cacheKey, { at: Date.now(), status, body });
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          if (source) res.setHeader('X-Track-Source', source);
+          res.end(body);
+        };
+
+        // 1) OpenSky /tracks/all — authentic recent track. Blocked on Vercel
+        //    (AWS) and often CN-throttled, so a failure is expected off-home.
+        try {
+          const token = await getOpenSkyToken();
+          const upstream = await fetch(
+            `https://opensky-network.org/api/tracks/all?icao24=${icao24}&time=0`,
+            {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              signal: AbortSignal.timeout(12000),
+            },
+          );
+          if (upstream.ok) {
+            const capped = await readCappedResponseText(
+              upstream,
+              RESPONSE_CAP_BYTES,
+            );
+            if (!capped.tooLarge && capped.text) {
+              send(200, capped.text, 'opensky');
+              return;
+            }
+          }
+        } catch {
+          /* fall through to adsb.lol */
+        }
+
+        // 2) adsb.lol trace fallback — keyless, reachable from Vercel and via
+        //    the CN proxy; up to ~24 h of real history per aircraft (ODbL).
+        try {
+          const traceRes = await fetch(
+            `https://adsb.lol/data/traces/${icao24.slice(-2)}/trace_full_${icao24}.json`,
+            { signal: AbortSignal.timeout(12000) },
+          );
+          if (traceRes.ok) {
+            const capped = await readCappedResponseText(
+              traceRes,
+              RESPONSE_CAP_BYTES,
+            );
+            if (!capped.tooLarge && capped.text) {
+              send(
+                200,
+                JSON.stringify(convertAdsbLolTrace(JSON.parse(capped.text))),
+                'adsblol',
+              );
+              return;
+            }
+          }
+          send(
+            traceRes.status || 502,
+            JSON.stringify({ error: `Track source HTTP ${traceRes.status}` }),
+          );
+        } catch {
+          send(502, JSON.stringify({ error: 'Track fetch failed' }));
+        }
       } catch (error) {
         res.statusCode = 502;
         res.setHeader('Content-Type', 'application/json');

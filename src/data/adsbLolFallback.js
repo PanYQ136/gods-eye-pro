@@ -99,3 +99,68 @@ export function normalizeAdsbLolPointResponse(payload) {
     .filter(Boolean);
   return { time: nowSeconds, states };
 }
+
+/**
+ * Convert a pocketworld.org /api/flights global snapshot into the OpenSky
+ * state-vector shape consumed by the existing Flights renderer.
+ * pocketworld aggregates ADSB.lol + ADSB.fi + OpenSky and exposes SI units
+ * (altitude m, velocity m/s, vertical_rate m/s) — identical to OpenSky.
+ * @param {object} payload pocketworld /api/flights response.
+ * @returns {{time:number,states:Array[],coverage:string,source:string}}
+ */
+export function normalizePocketWorldResponse(payload) {
+  const flights = Array.isArray(payload?.flights) ? payload.flights : [];
+  const observedMs = Date.parse(payload?.freshness?.observed_at || '');
+  const nowSeconds = Number.isFinite(observedMs)
+    ? Math.floor(observedMs / 1000)
+    : Math.floor(Date.now() / 1000);
+  const states = flights
+    .map((aircraft) => {
+      const hex = String(aircraft?.icao24 || '')
+        .trim()
+        .toLowerCase();
+      const latitude = finiteNumber(aircraft?.lat);
+      const longitude = finiteNumber(aircraft?.lng);
+      if (!hex || latitude === null || longitude === null) return null;
+      const lastContact = finiteNumber(aircraft?.last_contact);
+      const contactSeconds =
+        lastContact === null
+          ? nowSeconds
+          : Math.floor(
+              lastContact > 10_000_000_000 ? lastContact / 1000 : lastContact,
+            );
+      const altitudeM = finiteNumber(aircraft?.alt);
+      return [
+        hex,
+        String(aircraft?.callsign || '').trim() || null,
+        aircraft?.country || null,
+        contactSeconds,
+        contactSeconds,
+        longitude,
+        latitude,
+        altitudeM,
+        aircraft?.on_ground === true,
+        finiteNumber(aircraft?.velocity),
+        finiteNumber(aircraft?.heading),
+        finiteNumber(aircraft?.vertical_rate),
+        null,
+        altitudeM,
+        aircraft?.squawk || null,
+        false,
+        0,
+        0,
+      ];
+    })
+    .filter(Boolean);
+  // Serve with the LOCAL response time, not the upstream observed_at: the
+  // renderer treats the payload `time` as its observation clock and backs off
+  // ("Source snapshot N min old") when it looks stale — pocketworld's own
+  // acquisition pipeline runs ~1-3 min behind. Per-aircraft last_contact stays
+  // the real source time.
+  return {
+    time: Math.floor(Date.now() / 1000),
+    states,
+    coverage: 'global',
+    source: 'pocketworld',
+  };
+}

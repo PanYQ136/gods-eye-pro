@@ -1,4 +1,7 @@
-import { normalizeAdsbLolPointResponse } from '../../../src/data/adsbLolFallback.js';
+import {
+  normalizeAdsbLolPointResponse,
+  normalizePocketWorldResponse,
+} from '../../../src/data/adsbLolFallback.js';
 import {
   coalesceProxyRequest,
   readResponseJsonCapped,
@@ -25,6 +28,10 @@ let _openskyCacheMeta = null;
 let _openskyCacheSourceEpochMs = null;
 /** TTL for the OpenSky response cache (ms). */
 const OPENSKY_CACHE_MS = 9000;
+/** Hard timeout for the upstream snapshot fetch (ms). The mainland-CN route to
+ *  opensky-network.org throttles the ~1.7 MB body to 60-90 s, so an unbounded
+ *  fetch wedges the layer; on timeout we serve the regional adsb.lol fallback. */
+const OPENSKY_FETCH_TIMEOUT_MS = Number(process.env.OPENSKY_FETCH_TIMEOUT_MS) || 6000;
 // --- OpenSky credit governor (field-test fix 2026-07-06) -------------------
 // The global /states/all this proxy fetches costs 4 CREDITS per call against
 // OpenSky's ~4000/day authenticated budget — a day with the app open burned
@@ -41,6 +48,9 @@ const OPENSKY_CACHE_MS = 9000;
 let _openskyTtlMs = OPENSKY_CACHE_MS;
 /** @type {number} Epoch-ms before which no upstream fetch is attempted. */
 let _openskyCooldownUntil = 0;
+/** Circuit breaker: epoch-ms before which the OpenSky snapshot fetch is skipped
+ *  (set after a fetch timeout — the CN route throttles the body to 60-90 s). */
+let _openskySkipUntil = 0;
 /**
  * Picks the cache TTL from the remaining daily credit budget.
  * Client polls every 30 s, so tiers ≤30 s cost the same 480 credits/h; the
@@ -347,6 +357,79 @@ function openSkySourceIsStale(sourceEpochMs, now = Date.now()) {
  *
  * @returns {import('vite').Plugin}
  */
+// --- pocketworld.org global snapshot --------------------------------------
+// Keyless world-wide ADS-B snapshot (aggregates ADSB.lol + ADSB.fi + OpenSky),
+// reachable from mainland CN and from cloud hosts. Served as the primary
+// flights source so the world view stays populated regardless of OpenSky's
+// CN throttling / datacenter blocks. Cached server-side to respect its limits.
+const POCKETWORLD_URL =
+  process.env.POCKETWORLD_FLIGHTS_URL || 'https://pocketworld.org/api/flights';
+const POCKETWORLD_CACHE_MS =
+  Number(process.env.POCKETWORLD_CACHE_MS) || 180000;
+const POCKETWORLD_TIMEOUT_MS =
+  Number(process.env.POCKETWORLD_TIMEOUT_MS) || 30000;
+/** @type {{body:string,cachedAt:number,count:number}|null} */
+let _pocketWorldCache = null;
+/** @type {Promise<{body:string,cachedAt:number,count:number}>|null} */
+let _pocketWorldInFlight = null;
+
+async function fetchPocketWorldGlobal() {
+  const now = Date.now();
+  if (
+    _pocketWorldCache &&
+    now - _pocketWorldCache.cachedAt < POCKETWORLD_CACHE_MS
+  ) {
+    return { ..._pocketWorldCache, cacheStatus: 'HIT' };
+  }
+  if (!_pocketWorldInFlight) {
+    _pocketWorldInFlight = (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        POCKETWORLD_TIMEOUT_MS,
+      );
+      try {
+        const upstream = await fetch(POCKETWORLD_URL, {
+          headers: {
+            Accept: 'application/json',
+            'User-Agent': 'gods-eye-view-pocketworld/1.0',
+          },
+          signal: controller.signal,
+        });
+        if (!upstream.ok)
+          throw new Error(`pocketworld HTTP ${upstream.status}`);
+        const payload = await upstream.json();
+        const normalized = normalizePocketWorldResponse(payload);
+        if (!normalized.states.length)
+          throw new Error('pocketworld returned no aircraft');
+        const record = {
+          body: JSON.stringify(normalized),
+          cachedAt: Date.now(),
+          count: normalized.states.length,
+        };
+        console.log('[pocketworld] fetched', record.count);
+        return record;
+      } finally {
+        clearTimeout(timeoutId);
+        _pocketWorldInFlight = null;
+      }
+    })();
+  }
+  try {
+    const record = await _pocketWorldInFlight;
+    _pocketWorldCache = record;
+    return { ...record, cacheStatus: 'MISS' };
+  } catch (error) {
+    console.warn('[pocketworld Global]', error?.message || error);
+    return _pocketWorldCache
+      ? { ..._pocketWorldCache, cacheStatus: 'STALE' }
+      : null;
+  }
+}
+
+/**
+ * @returns {import('vite').Plugin}
+ */
 export function openSkyProxy() {
   const installMiddleware = (server) => {
     server.middlewares.use('/api/opensky', async (req, res) => {
@@ -354,6 +437,40 @@ export function openSkyProxy() {
         const requestedMode = normalizeOpenSkyAuthMode(
           process.env.OPENSKY_AUTH_MODE,
         );
+        // Live-first: when the client supplies a viewport, prefer adsb.lol's
+        // real-time point feed so the renderer can interpolate real motion
+        // between polls. The pocketworld global aggregate below runs minutes
+        // behind, so leading with it made icons sit still in mid-air.
+        // Falls through to pocketworld / OpenSky when no viewport or it misses.
+        if (adsbLolFallbackAnchor(req)) {
+          if (
+            await serveAdsbLolPointFallback(
+              req,
+              res,
+              requestedMode,
+              'live_adsblol_regional_primary',
+            )
+          ) {
+            return;
+          }
+        }
+
+        // Primary (global): world-wide snapshot via pocketworld (keyless,
+        // CN-reachable, aggregates OpenSky + ADSB.fi + ADSB.lol).
+        const pocketWorld = await fetchPocketWorldGlobal();
+        if (pocketWorld && pocketWorld.body) {
+          res.writeHead(
+            200,
+            buildOpenSkyHeaders({
+              cacheStatus: pocketWorld.cacheStatus,
+              requestedMode,
+              usedMode: 'pocketworld-global',
+              reason: 'pocketworld_global_snapshot',
+            }),
+          );
+          res.end(pocketWorld.body);
+          return;
+        }
         const now = Date.now();
         const inCooldown = now < _openskyCooldownUntil;
         // Fresh-enough cache (adaptive TTL) OR any cache during a 429
@@ -431,6 +548,21 @@ export function openSkyProxy() {
           return;
         }
 
+        // Circuit breaker: after a snapshot fetch timeout, skip the OpenSky
+        // attempt entirely and serve the fast regional adsb.lol data.
+        if (now < _openskySkipUntil) {
+          if (
+            await serveAdsbLolPointFallback(
+              req,
+              res,
+              requestedMode,
+              'opensky_timeout_circuit_regional_fallback',
+            )
+          ) {
+            return;
+          }
+        }
+
         const basicUser = process.env.OPENSKY_USERNAME || '';
         const basicPass = process.env.OPENSKY_PASSWORD || '';
         const hasBasicCreds = Boolean(basicUser && basicPass);
@@ -470,10 +602,39 @@ export function openSkyProxy() {
           }
         }
 
-        let upstream = await fetch(
-          'https://opensky-network.org/api/states/all?extended=1',
-          { headers },
-        );
+        let upstream;
+        try {
+          upstream = await fetch(
+            'https://opensky-network.org/api/states/all?extended=1',
+            { headers, signal: AbortSignal.timeout(OPENSKY_FETCH_TIMEOUT_MS) },
+          );
+        } catch (fetchErr) {
+          // Timeout / network failure on the (CN-throttled) OpenSky snapshot:
+          // trip the breaker (skip OpenSky for 10 min), then serve the fast
+          // regional adsb.lol fallback instead of wedging.
+          _openskySkipUntil = Date.now() + 10 * 60_000;
+          if (
+            await serveAdsbLolPointFallback(
+              req,
+              res,
+              requestedMode,
+              'opensky_fetch_timeout_regional_fallback',
+            )
+          ) {
+            return;
+          }
+          res.writeHead(
+            504,
+            buildOpenSkyHeaders({
+              cacheStatus: 'ERROR',
+              requestedMode,
+              usedMode: 'none',
+              reason: `opensky_fetch_failed:${fetchErr?.name || 'error'}`,
+            }),
+          );
+          res.end(JSON.stringify({ error: 'OpenSky snapshot fetch failed.' }));
+          return;
+        }
         // Auto-mode fallback: if OAuth was rejected, retry with Basic credentials
         if (
           (upstream.status === 401 || upstream.status === 403) &&
