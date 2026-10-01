@@ -662,7 +662,9 @@ validateLayerStateRegistry();
 export function createDefaultLayerState() {
   return {
     version: LAYER_STATE_VERSION,
-    enabledLayerIds: [],
+    // Flights on by default so live aircraft + their real-time trails are
+    // visible without a manual toggle (owner request 2026-10-01).
+    enabledLayerIds: ['flights'],
     options: Object.fromEntries(
       OPTION_OWNER_IDS.map((ownerId) => [ownerId, defaultsForOwner(ownerId)]),
     ),
