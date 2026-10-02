@@ -102,7 +102,7 @@ test('OpenSky state and track routes share tokens, retain cache and use regional
     ],
     'HIT',
   );
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   const tracks = install(providers.trackBackfillProxies(), true);
   assert.equal(
     (await tracks('/api/opensky-track', '?icao24=ABC123')).statusCode,

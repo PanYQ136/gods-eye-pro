@@ -1821,7 +1821,11 @@ test('layer feed states distinguish unavailable, fallback, stale, and degraded c
     lastUpdate: 1,
   }), 'unavailable', 'an explicit total outage stays unavailable while last-good data is preserved');
   assert.equal(layerFeedState({ mode: 'sim', count: 100, lastUpdate: 1 }), 'fallback');
-  assert.equal(layerFeedState({ source: 'adsb.lol', count: 10, lastUpdate: 1 }), 'fallback');
+  assert.equal(
+    layerFeedState({ source: 'adsb.lol', count: 10, lastUpdate: 1 }),
+    'nominal',
+    'adsb.lol is the live primary source, not a fallback',
+  );
   assert.equal(layerFeedState({
     source: 'adsb.lol',
     fallback: false,

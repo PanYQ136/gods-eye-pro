@@ -335,10 +335,7 @@ export function createQueries({
       if (Number.isFinite(params.renderLimit)) {
         // Raised cap: the layer now holds the full adsb.lol world (~6k), so the
         // slider must be able to render far more than the old 999 ceiling.
-        const n = Math.max(
-          0,
-          Math.min(8000, Math.floor(params.renderLimit)),
-        );
+        const n = Math.max(0, Math.min(8000, Math.floor(params.renderLimit)));
         if (n !== flightState._renderLimit) {
           flightState._renderLimit = n;
           flightState._lastFleetTickMs = 0;

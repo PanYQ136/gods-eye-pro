@@ -72,7 +72,8 @@ export function createDefaultMapSources({
               tileFailureFallback: {
                 id: 'amap-satellite',
                 threshold: 2,
-                message: 'Esri Satellite tile requests failed; using AMap (高德)',
+                message:
+                  'Esri Satellite tile requests failed; using AMap (高德)',
               },
             }
           : descriptor.id === 'amap-satellite' ||

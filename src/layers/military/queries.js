@@ -234,10 +234,7 @@ export function createQueries({
       if (Number.isFinite(params.renderLimit)) {
         // Raised cap: the layer holds the full adsb.lol military set and the
         // distance cull is now globe-spanning, so the slider must reach it.
-        const n = Math.max(
-          0,
-          Math.min(8000, Math.floor(params.renderLimit)),
-        );
+        const n = Math.max(0, Math.min(8000, Math.floor(params.renderLimit)));
         if (n !== flightState._renderLimit) {
           flightState._renderLimit = n;
           parts.ingestion?.methods?.reapply?.(flightState._viewer);

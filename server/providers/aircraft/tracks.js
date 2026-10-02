@@ -86,8 +86,7 @@ export function trackBackfillProxies() {
       const altRaw = point?.[3];
       const onGround = altRaw === 'ground';
       const altFt = Number(altRaw);
-      const baroAltM =
-        onGround || !Number.isFinite(altFt) ? 0 : altFt * 0.3048;
+      const baroAltM = onGround || !Number.isFinite(altFt) ? 0 : altFt * 0.3048;
       const track = Number(point?.[5]);
       path.push([
         Math.round(endEpoch - (maxOffset - offset)),
@@ -99,7 +98,9 @@ export function trackBackfillProxies() {
       ]);
     }
     const startTime = path.length ? path[0][0] : Math.floor(endEpoch);
-    const endTime = path.length ? path[path.length - 1][0] : Math.floor(endEpoch);
+    const endTime = path.length
+      ? path[path.length - 1][0]
+      : Math.floor(endEpoch);
     return {
       icao24: String(payload?.icao || '').toLowerCase(),
       callsign: (payload?.r || '').toString().trim() || null,
@@ -157,7 +158,17 @@ export function trackBackfillProxies() {
               upstream,
               RESPONSE_CAP_BYTES,
             );
-            if (!capped.tooLarge && capped.text) {
+            if (capped.tooLarge) {
+              // An oversized OpenSky body is a hard failure, not a reason to
+              // spend a second download on the adsb.lol fallback.
+              send(
+                502,
+                JSON.stringify({ error: 'Upstream track response too large' }),
+                'opensky',
+              );
+              return;
+            }
+            if (capped.text) {
               send(200, capped.text, 'opensky');
               return;
             }
@@ -178,7 +189,15 @@ export function trackBackfillProxies() {
               traceRes,
               RESPONSE_CAP_BYTES,
             );
-            if (!capped.tooLarge && capped.text) {
+            if (capped.tooLarge) {
+              send(
+                502,
+                JSON.stringify({ error: 'Upstream track response too large' }),
+                'adsblol',
+              );
+              return;
+            }
+            if (capped.text) {
               send(
                 200,
                 JSON.stringify(convertAdsbLolTrace(JSON.parse(capped.text))),

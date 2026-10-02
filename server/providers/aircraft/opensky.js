@@ -31,7 +31,8 @@ const OPENSKY_CACHE_MS = 9000;
 /** Hard timeout for the upstream snapshot fetch (ms). The mainland-CN route to
  *  opensky-network.org throttles the ~1.7 MB body to 60-90 s, so an unbounded
  *  fetch wedges the layer; on timeout we serve the regional adsb.lol fallback. */
-const OPENSKY_FETCH_TIMEOUT_MS = Number(process.env.OPENSKY_FETCH_TIMEOUT_MS) || 6000;
+const OPENSKY_FETCH_TIMEOUT_MS =
+  Number(process.env.OPENSKY_FETCH_TIMEOUT_MS) || 6000;
 // --- OpenSky credit governor (field-test fix 2026-07-06) -------------------
 // The global /states/all this proxy fetches costs 4 CREDITS per call against
 // OpenSky's ~4000/day authenticated budget — a day with the app open burned
@@ -345,7 +346,9 @@ async function serveAdsbLolPointFallback(req, res, requestedMode, reason) {
   const anchor = adsbLolFallbackAnchor(req);
   const global = Boolean(anchor?.global);
   const primary = /primary/.test(String(reason));
-  const scopeLabel = global ? 'global' : `${ADSBLOL_POINT_RADIUS_NM}nm regional`;
+  const scopeLabel = global
+    ? 'global'
+    : `${ADSBLOL_POINT_RADIUS_NM}nm regional`;
   res.writeHead(200, {
     ...buildOpenSkyHeaders({
       cacheStatus: fallback.cacheStatus,
@@ -401,8 +404,7 @@ function openSkySourceIsStale(sourceEpochMs, now = Date.now()) {
 // CN throttling / datacenter blocks. Cached server-side to respect its limits.
 const POCKETWORLD_URL =
   process.env.POCKETWORLD_FLIGHTS_URL || 'https://pocketworld.org/api/flights';
-const POCKETWORLD_CACHE_MS =
-  Number(process.env.POCKETWORLD_CACHE_MS) || 180000;
+const POCKETWORLD_CACHE_MS = Number(process.env.POCKETWORLD_CACHE_MS) || 180000;
 const POCKETWORLD_TIMEOUT_MS =
   Number(process.env.POCKETWORLD_TIMEOUT_MS) || 30000;
 /** @type {{body:string,cachedAt:number,count:number}|null} */

@@ -379,7 +379,8 @@
       "src/ui/mapSource.js",
       "src/ui/mapSourceControls.js",
       "src/mapStackChips.js",
-      "src/keySetupCore.mjs"
+      "src/keySetupCore.mjs",
+      "src/maps/regionDetect.js"
     ],
     "external": []
   },
@@ -625,7 +626,8 @@
       "src/styles/cinema.js",
       "src/styles/ghost.js",
       "src/styles/predator.js",
-      "src/styles/xray.js"
+      "src/styles/xray.js",
+      "src/maps/regionDetect.js"
     ],
     "external": ["cesium"]
   },
@@ -939,7 +941,8 @@
       "src/layers/satellites/state.js",
       "src/layers/satellites/testing.js",
       "src/layers/satellites/tracking.js",
-      "src/data/inputOwnership.js"
+      "src/data/inputOwnership.js",
+      "src/data/vehicleIcons.js"
     ],
     "external": ["cesium", "satellite.js"]
   },
@@ -966,7 +969,8 @@
       "src/layers/launches/source.js",
       "src/layers/launches/state.js",
       "src/layers/launches/testing.js",
-      "src/data/inputOwnership.js"
+      "src/data/inputOwnership.js",
+      "src/data/vehicleIcons.js"
     ],
     "external": ["cesium"]
   },
@@ -1043,7 +1047,8 @@
       "src/layers/traffic/style.js",
       "src/layers/traffic/timing.js",
       "src/layers/traffic/viewport.js",
-      "src/sources/overpassRoads.js"
+      "src/sources/overpassRoads.js",
+      "src/data/vehicleIcons.js"
     ],
     "external": ["cesium", "pbf", "@mapbox/vector-tile"]
   },
@@ -1974,7 +1979,9 @@
       "src/styles/cinema.js",
       "src/styles/ghost.js",
       "src/styles/predator.js",
-      "src/styles/xray.js"
+      "src/styles/xray.js",
+      "src/maps/regionDetect.js",
+      "src/data/vehicleIcons.js"
     ],
     "external": [
       "hls.js",
@@ -2434,7 +2441,8 @@
       "src/layers/recentImagery/catalog.js",
       "src/layers/recentImagery/rendering.js",
       "src/layers/recentImagery/thumbnails.js",
-      "src/maps/imageryHost.js"
+      "src/maps/imageryHost.js",
+      "src/data/vehicleIcons.js"
     ],
     "external": [
       "hls.js",

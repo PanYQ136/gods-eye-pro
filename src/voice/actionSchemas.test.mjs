@@ -27,9 +27,10 @@ test('the complete Realtime tool payload pins the additive analyst, satellite, L
     .digest('hex');
   assert.equal(
     digest,
-    // Re-derived for the additive `local-adsb` set_layer_visibility value and
-    // the Cyber HUD layout; the separate sonar tool is excluded above.
-    '590d537d93e132ac64ac5e211ad5bb9d7d1b1f22e2dd963dda5465fab4510a3b',
+    // Re-derived for the additive `local-adsb` set_layer_visibility value,
+    // the Cyber HUD layout, and the two AMap basemap stacks; the separate
+    // sonar tool is excluded above.
+    'f6ebca754f99cd1449d3cc4f50910992aec2d094ff20bd521073be81896e45a8',
   );
 });
 
@@ -118,6 +119,6 @@ test('all legacy action arguments are byte-identical after removing the delibera
   hud.enum = hud.enum.filter((layout) => layout !== 'cyber');
   assert.equal(
     createHash('sha256').update(JSON.stringify(legacy)).digest('hex'),
-    '820fff21658f6907e1010b2b79c5431a77f4e34afd2277d62d8de46c368b6f8c',
+    'f2d7c519f5a0e07614fae3692d87f1cfe61391926bd9fbb1ebbe1be388c06707',
   );
 });

@@ -51,7 +51,12 @@ export function stripKeylessBasemapFromHash(hash) {
   if (!hash) return null;
   try {
     const params = new URLSearchParams(hash);
-    if (!['osm', 'esri-imagery', 'amap-satellite', 'amap-hybrid'].includes(params.get('map'))) return null;
+    if (
+      !['osm', 'esri-imagery', 'amap-satellite', 'amap-hybrid'].includes(
+        params.get('map'),
+      )
+    )
+      return null;
     params.delete('map');
     return params.toString();
   } catch {

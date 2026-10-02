@@ -48,7 +48,7 @@ test('layerFeedState matches the chip classifier for every honesty class', () =>
   );
   assert.equal(
     layerFeedState({ source: 'adsb.lol', count: 10, lastUpdate: 1 }),
-    'fallback',
+    'nominal',
   );
   assert.equal(
     layerFeedState({

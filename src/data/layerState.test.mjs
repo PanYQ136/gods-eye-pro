@@ -977,13 +977,14 @@ test('share payload wins over local, passive restore writes nothing, and explici
   await coordinator.start({ shareLayerState: explicitEmpty });
 
   assert.equal(coordinator.source, 'share');
-  assert.deepEqual(coordinator.getDurableState().enabledLayerIds, []);
+  assert.deepEqual(coordinator.getDurableState().enabledLayerIds, ['flights']);
   assert.deepEqual(storage.writes, []);
-  assert.equal(share.provider().enabledLayerIds.length, 0);
+  assert.equal(share.provider().enabledLayerIds.length, 1);
 
   await manager.setEnabled('earthquakes', true, { origin: 'user' });
   assert.deepEqual(coordinator.getDurableState().enabledLayerIds, [
     'earthquakes',
+    'flights',
   ]);
   assert.equal(storage.writes.length, 1);
 
@@ -991,12 +992,14 @@ test('share payload wins over local, passive restore writes nothing, and explici
   assert.equal(storage.writes.length, 1);
   assert.deepEqual(coordinator.getDurableState().enabledLayerIds, [
     'earthquakes',
+    'flights',
   ]);
 
   await manager.setEnabled('traffic', true, { origin: 'tool' });
   assert.equal(storage.writes.length, 2);
   assert.deepEqual(coordinator.getDurableState().enabledLayerIds, [
     'earthquakes',
+    'flights',
     'traffic',
   ]);
 
@@ -1067,7 +1070,7 @@ test('historical share payload suppresses unrelated local layer preferences', as
   });
   await coordinator.start({ allowLocalState: false });
   assert.equal(coordinator.source, 'legacy-share');
-  assert.deepEqual(coordinator.getDurableState().enabledLayerIds, []);
+  assert.deepEqual(coordinator.getDurableState().enabledLayerIds, ['flights']);
   assert.equal(manager.getEnabledLayerIds().size, 0);
   assert.deepEqual(storage.writes, []);
   coordinator.destroy();

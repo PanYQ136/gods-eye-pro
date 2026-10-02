@@ -364,19 +364,48 @@
   }
   // ── 船型实拍图（内置，CC 授权，来自 Wikimedia Commons）──────────────────
   const VESSEL_PHOTO_CLASSES = [
-    { slug: 'container', re: /container/i, credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia' },
-    { slug: 'tanker', re: /tanker|oil|chemical|gas|lng|lpg/i, credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia' },
-    { slug: 'bulk', re: /bulk/i, credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia' },
-    { slug: 'cruise', re: /passenger|cruise|ferry/i, credit: '© Virtual-Pano / CC BY-SA 4.0 · Wikimedia' },
-    { slug: 'fishing', re: /fish/i, credit: '© Wikimedia Commons / CC BY-SA 4.0' },
-    { slug: 'tug', re: /tug|tow|pilot|dredg|law|military|search|patrol/i, credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia' },
-    { slug: 'cargo', re: /cargo|freight|general/i, credit: '© Agnes Monkelbaan / CC BY-SA 4.0 · Wikimedia' },
+    {
+      slug: 'container',
+      re: /container/i,
+      credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia',
+    },
+    {
+      slug: 'tanker',
+      re: /tanker|oil|chemical|gas|lng|lpg/i,
+      credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia',
+    },
+    {
+      slug: 'bulk',
+      re: /bulk/i,
+      credit: '© Gordon Leggett / CC BY-SA 4.0 · Wikimedia',
+    },
+    {
+      slug: 'cruise',
+      re: /passenger|cruise|ferry/i,
+      credit: '© Virtual-Pano / CC BY-SA 4.0 · Wikimedia',
+    },
+    {
+      slug: 'fishing',
+      re: /fish/i,
+      credit: '© Wikimedia Commons / CC BY-SA 4.0',
+    },
+    {
+      slug: 'tug',
+      re: /tug|tow|pilot|dredg|law|military|search|patrol/i,
+      credit: '© Gordon Leggett / CC BY 4.0 · Wikimedia',
+    },
+    {
+      slug: 'cargo',
+      re: /cargo|freight|general/i,
+      credit: '© Agnes Monkelbaan / CC BY-SA 4.0 · Wikimedia',
+    },
   ];
   function vesselPhotoFor(type) {
     const t = String(type || '');
     if (!t) return null;
     for (const c of VESSEL_PHOTO_CLASSES)
-      if (c.re.test(t)) return { src: '/vessel-photos/' + c.slug + '.jpg', credit: c.credit };
+      if (c.re.test(t))
+        return { src: '/vessel-photos/' + c.slug + '.jpg', credit: c.credit };
     return null;
   }
 
@@ -389,9 +418,11 @@
     }
   })();
   const _vesselPhotoPending = new Map();
-  const VESSEL_BAD = /logo|flag|icon|map|chart|coat|emblem|seal|diagram|stem|cell|portrait|gauge|coin|book|novel|album|song|stamp|poster|painting|engraving|lithograph|manuscript|cover|postcard|banknote|document|scan|title[_ ]?page/i;
+  const VESSEL_BAD =
+    /logo|flag|icon|map|chart|coat|emblem|seal|diagram|stem|cell|portrait|gauge|coin|book|novel|album|song|stamp|poster|painting|engraving|lithograph|manuscript|cover|postcard|banknote|document|scan|title[_ ]?page/i;
   function fetchVesselCommons(name) {
-    if (name in _vesselPhotoCache) return Promise.resolve(_vesselPhotoCache[name]);
+    if (name in _vesselPhotoCache)
+      return Promise.resolve(_vesselPhotoCache[name]);
     if (_vesselPhotoPending.has(name)) return _vesselPhotoPending.get(name);
     const tokens = String(name)
       .toUpperCase()
@@ -528,7 +559,9 @@
 
   function pickHex(list) {
     for (const v of list) {
-      const s = String(v || '').trim().toLowerCase();
+      const s = String(v || '')
+        .trim()
+        .toLowerCase();
       if (/^[0-9a-f]{6}$/.test(s)) return s;
     }
     return null;

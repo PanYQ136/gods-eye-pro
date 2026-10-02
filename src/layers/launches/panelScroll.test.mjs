@@ -6,7 +6,7 @@ test('rendering a selected mission resets the nearest theme-appropriate Context 
   for (const cyber of [true, false]) {
     const body = { scrollTop: 180 };
     const inner = { scrollTop: 90 };
-    const output = { closest: () => null, removeAttribute() {} };
+    const output = { closest: () => null, removeAttribute() {}, style: {} };
     const state = {
       _missionPanel: {
         querySelector: () => output,
